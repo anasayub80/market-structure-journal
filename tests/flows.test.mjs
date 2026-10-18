@@ -11,7 +11,7 @@ function route(hash){location.hash=hash;windowEvents.hashchange();}
 async function click(action){await events.click({target:{closest:()=>({dataset:{action},disabled:false}),classList:{contains:()=>false}}});}
 function submit(id,fields,dataset={}){events.submit({preventDefault(){},target:{id,dataset,fields,checkValidity:()=>true}});}
 const db=()=>JSON.parse(saved.get('structure-v1'));
-test('all user and admin pages render without runtime errors',()=>{for(const role of ['user','admin'])for(const page of role==='user'?['overview','trades','calendar','analytics','journal','playbook','accounts','reports','settings','help']:['overview','users','licenses','accounts','analytics','calendar','connections','activity','settings','help']){route(`#/${role}/${page}`);assert.match(nodes.app.innerHTML,/<main/);assert.ok(!nodes.app.innerHTML.includes('NaN'));assert.ok(nodes.app.innerHTML.includes('page-heading'));}for(const page of ['login','register','forgot','onboarding']){route('#/'+page);assert.ok(nodes.app.innerHTML.includes('auth-layout'));}});
+test('all user and admin pages render without runtime errors',()=>{for(const role of ['user','admin'])for(const page of role==='user'?['overview','trades','calendar','analytics','journal','accounts','reports','settings','help']:['overview','users','licenses','accounts','analytics','calendar','connections','activity','settings','help']){route(`#/${role}/${page}`);assert.match(nodes.app.innerHTML,/<main/);assert.ok(!nodes.app.innerHTML.includes('NaN'));assert.ok(nodes.app.innerHTML.includes('page-heading'));}for(const page of ['login','register','forgot','onboarding']){route('#/'+page);assert.ok(nodes.app.innerHTML.includes('auth-layout'));}});
 test('role routes keep administrator pages out of the user workspace',()=>{route('#/user/users');assert.ok(nodes.app.innerHTML.includes('Every trade tells a story'));assert.ok(!nodes.app.innerHTML.includes('User management'));});
 test('trade detail opens a review form and persists edits',async()=>{route('#/user/trades');await click('trade:t1');assert.ok(nodes.overlay.innerHTML.includes('trade-review-form'));submit('trade-review-form',{setup:'Liquidity sweep',emotion:'Calm',notes:'Reviewed in flow test',reviewed:'on'},{id:'t1'});assert.equal(db().trades.find(t=>t.id==='t1').notes,'Reviewed in flow test');});
 test('user route cannot mutate another user trade',()=>{route('#/user/trades');const t=db().trades.find(t=>t.accountId==='a4');submit('trade-review-form',{setup:'Liquidity sweep',emotion:'Calm',notes:'Forbidden edit'},{id:t.id});assert.notEqual(db().trades.find(x=>x.id===t.id).notes,'Forbidden edit');});
@@ -22,8 +22,6 @@ test('admin-issued licenses belong to their selected owner',()=>{route('#/admin/
 test('non-admin cannot issue licenses or add users through handlers',()=>{route('#/user/accounts');const before=db();submit('license-form',{userId:'u1',name:'Unauthorized',balance:'1'});submit('user-form',{name:'Unauthorized',email:'forbidden@example.com'});assert.equal(db().accounts.length,before.accounts.length);assert.equal(db().users.length,before.users.length);});
 test('sample license activation and full connection wizard complete',async()=>{route('#/user/accounts');submit('activate-form',{license:'STRC-DEMO-2026',name:'Connected test',type:'Demo'});const a=db().accounts.find(a=>a.license==='STRC-DEMO-2026');assert.ok(a);submit('connect-form',{number:'12345678',broker:'Test broker',server:'Test-MT5'},{id:a.id});assert.ok(nodes.overlay.innerHTML.includes('Set up your terminal connector'));await click('connect-verify:'+a.id);assert.ok(nodes.overlay.innerHTML.includes('Simulate successful connection'));await click('connect-finish:'+a.id);const current=db().accounts.find(x=>x.id===a.id);assert.equal(current.connection,'Connected');assert.equal(current.number,'12345678');assert.equal(current.server,'Test-MT5');});
 test('suspending a user suspends active licenses and disconnects them',async()=>{route('#/admin/users');await click('confirm-toggle-user:u2');assert.equal(db().users.find(u=>u.id==='u2').status,'Suspended');assert.ok(db().accounts.filter(a=>a.userId==='u2').every(a=>a.status!=='Active'&&a.connection==='Disconnected'));});
-test('manual trade creation is included in filtered account metrics',()=>{route('#/user/trades');submit('add-trade-form',{accountId:'a1',symbol:'XAUUSD',side:'Buy',date:'2026-10-16',entry:'2600',exit:'2610',lots:'0.1',pnl:'100',fees:'2',r:'2',session:'London',setup:'Liquidity sweep',notes:'Flow test manual trade'});const t=db().trades.find(t=>t.notes==='Flow test manual trade');assert.ok(t);assert.equal(t.pnl-t.fees,98);assert.equal(t.source,'Manual');});
-test('setup renaming updates existing trade associations',()=>{route('#/user/playbook');submit('playbook-form',{name:'Liquidity sweep revised',description:'Revised setup',timeframe:'4H',color:'gold',rules:'Wait\nConfirm'},{id:'p1'});assert.ok(db().trades.some(t=>t.setup==='Liquidity sweep revised'));assert.ok(!db().trades.some(t=>['a1','a2','a3'].includes(t.accountId)&&t.setup==='Liquidity sweep'));assert.ok(db().trades.some(t=>t.accountId==='a4'&&t.setup==='Liquidity sweep'));});
 test('settings save local risk preferences',()=>{route('#/user/settings');submit('risk-form',{perTrade:'0.5',dailyLoss:'2',maxTrades:'2'});assert.deepEqual(db().risk,{perTrade:.5,dailyLoss:2,maxTrades:2});});
 
 test('clicking a user opens a complete scoped workspace and preserves admin access',async()=>{
@@ -36,7 +34,7 @@ test('clicking a user opens a complete scoped workspace and preserves admin acce
  assert.ok(!nodes.app.innerHTML.includes('Swing portfolio'));
 });
 test('all user pages work inside an admin-selected user panel',()=>{
- for(const page of ['overview','trades','calendar','analytics','journal','playbook','accounts','reports','settings','help']){
+ for(const page of ['overview','trades','calendar','analytics','journal','accounts','reports','settings','help']){
   route('#/admin/users/u2/'+page);assert.ok(nodes.app.innerHTML.includes('Viewing Sarah Chen’s panel'));assert.ok(nodes.app.innerHTML.includes('page-heading'));assert.ok(!nodes.app.innerHTML.includes('NaN'));
  }
 });
@@ -55,12 +53,6 @@ test('journals are scoped by user and selected-user edits retain the owner',()=>
  route('#/user/journal');assert.ok(!nodes.app.innerHTML.includes('Sarah private review'));
  const foreign=db().entries.find(e=>e.title==='Sarah private review');submit('entry-form',{date:'2026-10-16',title:'Wrong owner',content:'Forbidden',mood:'Calm',rating:'5'},{id:foreign.id});assert.equal(db().entries.find(e=>e.id===foreign.id).title,'Sarah private review');
 });
-test('selected user playbook rename never changes another owner’s trades or definitions',()=>{
- route('#/admin/users/u2/playbook');submit('playbook-form',{name:'Sarah liquidity plan',description:'Sarah setup',timeframe:'1H',color:'purple',rules:'Wait for sweep'},{id:'p1-u2'});
- assert.ok(db().trades.some(t=>t.accountId==='a4'&&t.setup==='Sarah liquidity plan'));
- assert.ok(!db().trades.some(t=>t.accountId!=='a4'&&t.setup==='Sarah liquidity plan'));
- assert.equal(db().playbooks.find(p=>p.id==='p1').name,'Liquidity sweep revised');
-});
 test('selected user settings do not overwrite the primary user profile or risk',()=>{
  route('#/admin/users/u3/settings');submit('risk-form',{perTrade:'0.25',dailyLoss:'1',maxTrades:'1'});
  assert.equal(db().userSettings.u3.risk.perTrade,.25);assert.equal(db().risk.perTrade,.5);
@@ -74,4 +66,27 @@ test('empty and unknown users do not fall back to another user’s statistics',(
 });
 test('return control exits the selected panel and restores full admin navigation',async()=>{
  route('#/admin/users/u2/trades');await click('back-to-admin');assert.equal(location.hash,'/admin/users');windowEvents.hashchange();assert.ok(nodes.app.innerHTML.includes('User management'));assert.ok(!nodes.app.innerHTML.includes('admin-view-banner'));assert.ok(nodes.app.innerHTML.includes('#/admin/licenses'));
+});
+
+test('EA-only workspace removes trade creation and playbook from both role contexts',async()=>{
+ for(const base of ['#/user/','#/admin/users/u2/']){
+  for(const page of ['overview','trades','analytics']){
+   route(base+page);assert.ok(!nodes.app.innerHTML.includes('data-action="add-trade"'));assert.ok(!nodes.app.innerHTML.includes('>Playbook<'));assert.ok(!nodes.app.innerHTML.includes('/playbook'));
+  }
+  route(base+'playbook');assert.ok(nodes.app.innerHTML.includes('Every trade tells a story'));
+ }
+ route('#/user/trades');const before=db().trades.length;
+ await click('add-trade');submit('add-trade-form',{accountId:'a1',pnl:'999999',notes:'Not allowed'});submit('playbook-form',{name:'Removed action'});
+ assert.equal(db().trades.length,before);assert.ok(!db().trades.some(t=>t.notes==='Not allowed'));
+});
+test('execution review cannot overwrite broker data or EA metadata',async()=>{
+ route('#/user/trades');const original=db().trades.find(t=>t.id==='t1');await click('trade:t1');
+ assert.ok(nodes.overlay.innerHTML.includes('Magic number'));assert.ok(nodes.overlay.innerHTML.includes('Synced execution data is read-only'));
+ assert.ok(!nodes.overlay.innerHTML.includes('name="setup"'));
+ submit('trade-review-form',{notes:'EA observation',reviewed:'on',pnl:'999999',entry:'1',fees:'0',eaName:'Injected EA',magic:'0'},{id:'t1'});
+ const updated=db().trades.find(t=>t.id==='t1');for(const key of ['pnl','entry','exit','fees','lots','eaName','magic','source'])assert.equal(updated[key],original[key]);assert.equal(updated.notes,'EA observation');
+});
+test('EA analytics and history use imported advisor identity',async()=>{
+ route('#/user/analytics');await click('analytics:Expert Advisors');assert.ok(nodes.app.innerHTML.includes('NOVA Retracement EA'));assert.ok(nodes.app.innerHTML.includes('Structure Continuation EA'));
+ route('#/user/trades');assert.ok(nodes.app.innerHTML.includes('EA sync only'));assert.ok(nodes.app.innerHTML.includes('Expert Advisor'));assert.ok(!nodes.app.innerHTML.includes('· Manual'));
 });

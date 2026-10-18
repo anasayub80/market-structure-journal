@@ -17,7 +17,7 @@ export const seedAccounts=[
 {id:'a5',userId:'u3',name:'James · Personal',broker:'Pepperstone',number:'819246',server:'Pepperstone-Live',license:'STRC-5W7X-1Y3Z',status:'Active',connection:'Disconnected',type:'Live',balance:20000,currency:'USD',lastSync:'2026-10-15T09:10:00',expiry:'2027-09-02',created:'2026-09-02'},
 {id:'a6',userId:'u5',name:'Emma · Research',broker:'IC Markets',number:'920137',server:'ICMarketsSC-Demo',license:'STRC-6B8C-2D4E',status:'Revoked',connection:'Disconnected',type:'Demo',balance:10000,currency:'USD',lastSync:'2026-10-01T12:10:00',expiry:'2026-10-01',created:'2026-09-21'}];
 const instruments=['XAUUSD','GBPUSD','EURUSD','BTCUSD'];
-const setups=['Liquidity sweep','BOS continuation','NY range breakout'];
+export const eaStrategies=[{name:'NOVA Retracement EA',magic:202601},{name:'Structure Continuation EA',magic:202602},{name:'NY Range EA',magic:202603}];
 export const seedTrades=[];
 let n=0;
 for(let d=new Date('2026-08-03T12:00:00Z');d<=new Date(DEMO_TODAY+'T12:00:00Z');d.setUTCDate(d.getUTCDate()+1)){
@@ -29,12 +29,11 @@ for(let d=new Date('2026-08-03T12:00:00Z');d<=new Date(DEMO_TODAY+'T12:00:00Z');
    n++;const win=(n*7%13)<8;const risk=a.id==='a4'?230:a.id==='a2'?65:125;
    const pnl=win?risk*(1.4+(n%7)*.27):-risk*(.65+(n%5)*.13);
    const symbol=instruments[(n*3+k)%4],side=n%3?'Buy':'Sell',entry=symbol==='XAUUSD'?2640+n%65:symbol==='BTCUSD'?68100+n%900:symbol==='GBPUSD'?1.302+n%100/10000:1.092+n%100/10000;
-   seedTrades.push({id:'t'+n,ticket:8100000+n,accountId:a.id,date:day,time:['08:30','09:45','13:15','14:30'][n%4],symbol,side,entry,exit:entry+(side==='Buy'?1:-1)*(win?1:-1)*(symbol==='XAUUSD'?8.2:symbol==='BTCUSD'?210:.0018),lots:symbol==='XAUUSD'?.15:.5,pnl:Math.round(pnl*100)/100,fees:Math.round((2.1+n%4)*100)/100,r:Math.round(pnl/risk*100)/100,session:n%4<2?'London':n%4===2?'New York':'Asia',setup:setups[n%3],duration:15+n%170,source:n%5?'EA sync':'Manual',emotion:['Focused','Calm','Confident','Impatient'][n%4],notes:win?'Waited for the displacement and a clean retest. Entry followed the plan.':'Review entry timing. Keep risk consistent and wait for structure confirmation.',reviewed:n%4!==0});
+   seedTrades.push({id:'t'+n,ticket:8100000+n,accountId:a.id,date:day,time:['08:30','09:45','13:15','14:30'][n%4],symbol,side,entry,exit:entry+(side==='Buy'?1:-1)*(win?1:-1)*(symbol==='XAUUSD'?8.2:symbol==='BTCUSD'?210:.0018),lots:symbol==='XAUUSD'?.15:.5,pnl:Math.round(pnl*100)/100,fees:Math.round((2.1+n%4)*100)/100,r:Math.round(pnl/risk*100)/100,session:n%4<2?'London':n%4===2?'New York':'Asia',eaName:eaStrategies[n%3].name,magic:eaStrategies[n%3].magic,duration:15+n%170,source:'EA sync',notes:win?'EA execution completed. Review the result against the configured risk settings.':'EA execution closed at a loss. Review drawdown and position sizing before changing configuration.',reviewed:n%4!==0});
   }
  }
 }
-export const seedEntries=[{id:'j1',date:'2026-10-16',title:'Patience is the edge.',mood:'Focused',rating:4,content:'Waited for the London liquidity sweep before entering. The cleanest trade came after the first hour. No need to catch every move.\n\nTomorrow: keep the same risk, wait for displacement, and stop after two losses.'},{id:'j2',date:'2026-10-15',title:'One good decision at a time.',mood:'Calm',rating:5,content:'Respected my daily risk limit. Passed on a messy GBPUSD setup and focused on gold. Quality over activity.'},{id:'j3',date:'2026-10-14',title:'A lesson in overtrading.',mood:'Impatient',rating:2,content:'Entered before the retest confirmed. Two losses were enough. Closed the terminal and reviewed my plan.'}];
-export const seedPlaybooks=[{id:'p1',name:'Liquidity sweep',description:'Trade the reaction after liquidity is taken and structure shifts.',timeframe:'4H → 15M',color:'gold',rules:['Higher timeframe bias aligned','Liquidity swept and reclaimed','Displacement creates an FVG','Risk defined before entry']},{id:'p2',name:'BOS continuation',description:'Join an established trend on a clean structure retest.',timeframe:'4H → 1H',color:'purple',rules:['Clear HH/HL or LL/LH sequence','Body close through structure','Fresh retest of the origin','At least 1:3 planned reward']},{id:'p3',name:'NY range breakout',description:'A patient breakout and retest of the opening range.',timeframe:'15M → 1M',color:'blue',rules:['First 15-minute range closed','Breakout with displacement','Retest respects the range','One attempt per session']}];
+export const seedEntries=[{id:'j1',date:'2026-10-16',title:'Patience is the edge.',mood:'Focused',rating:4,content:'Reviewed the EA’s London-session executions. The account stayed within its configured risk budget.\n\nNext review: compare holding time, fees, and drawdown across the connected EAs.'},{id:'j2',date:'2026-10-15',title:'One good decision at a time.',mood:'Calm',rating:5,content:'Reviewed daily loss and trade count against the EA configuration. Gold and GBPUSD execution histories synced successfully.'},{id:'j3',date:'2026-10-14',title:'A lesson in overtrading.',mood:'Impatient',rating:2,content:'The EA recorded two losing executions. Reviewed the sequence and drawdown without changing the source trade data.'}];
 export function metrics(trades,starting=25000){
  const pnl=trades.reduce((s,t)=>s+t.pnl-t.fees,0),wins=trades.filter(t=>t.pnl-t.fees>0),losses=trades.filter(t=>t.pnl-t.fees<=0),grossWin=wins.reduce((s,t)=>s+t.pnl-t.fees,0),grossLoss=Math.abs(losses.reduce((s,t)=>s+t.pnl-t.fees,0));
  let equity=starting,peak=starting,dd=0;const curve=[{date:'Start',value:starting}];
@@ -44,22 +43,37 @@ export function metrics(trades,starting=25000){
 export function groupTrades(trades,key){const g={};for(const t of trades){const k=typeof key==='function'?key(t):t[key];(g[k]??=[]).push(t);}return Object.entries(g).map(([name,rows])=>({name,...metrics(rows),trades:rows}));}
 export function filterTrades(trades,{account='all',accountIds,range='month',symbol='all',session='all',outcome='all',query=''}={}){
  const start=range==='month'?'2026-10-01':range==='week'?'2026-10-12':range==='quarter'?'2026-08-01':'0000-01-01';
- return trades.filter(t=>(!accountIds||accountIds.includes(t.accountId))&&(account==='all'||t.accountId===account)&&t.date>=start&&(symbol==='all'||t.symbol===symbol)&&(session==='all'||t.session===session)&&(outcome==='all'||(outcome==='win'?t.pnl-t.fees>0:t.pnl-t.fees<=0))&&(!query||`${t.symbol} ${t.setup} ${t.ticket} ${t.date}`.toLowerCase().includes(query.toLowerCase())));
+ return trades.filter(t=>t.source==='EA sync'&&(!accountIds||accountIds.includes(t.accountId))&&(account==='all'||t.accountId===account)&&t.date>=start&&(symbol==='all'||t.symbol===symbol)&&(session==='all'||t.session===session)&&(outcome==='all'||(outcome==='win'?t.pnl-t.fees>0:t.pnl-t.fees<=0))&&(!query||`${t.symbol} ${t.eaName||''} ${t.magic||''} ${t.ticket} ${t.date}`.toLowerCase().includes(query.toLowerCase())));
 }
 export function calendarCells(year,month){const first=new Date(year,month,1),offset=(first.getDay()+6)%7,days=new Date(year,month+1,0).getDate();return Array.from({length:Math.ceil((offset+days)/7)*7},(_,i)=>{const date=new Date(year,month,i-offset+1);return {day:date.getDate(),date:`${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`,current:date.getMonth()===month};});}
-export function loadState(){try{const s=JSON.parse(localStorage.getItem('structure-v1'));if(s?.version===1)return migrateUserWorkspaces(s);}catch{}return migrateUserWorkspaces({version:1,users:structuredClone(seedUsers),accounts:structuredClone(seedAccounts),trades:structuredClone(seedTrades),entries:structuredClone(seedEntries),playbooks:structuredClone(seedPlaybooks),profile:{name:'Anas Ayub',email:'anas@example.com',timezone:'Asia/Karachi',currency:'USD'},risk:{perTrade:1,dailyLoss:3,maxTrades:3},preferences:{email:true,sync:true,weekly:true},activity:[{id:'ev1',text:'Trade history synced · Main trading account',time:'Oct 16, 15:42',type:'sync'},{id:'ev2',text:'New license issued · Strategy lab',time:'Oct 01, 12:00',type:'license'}],theme:'light'});}
+export function loadState(){try{const s=JSON.parse(localStorage.getItem('structure-v1'));if(s?.version===1)return migrateUserWorkspaces(s);}catch{}return migrateUserWorkspaces({version:1,users:structuredClone(seedUsers),accounts:structuredClone(seedAccounts),trades:structuredClone(seedTrades),entries:structuredClone(seedEntries),profile:{name:'Anas Ayub',email:'anas@example.com',timezone:'Asia/Karachi',currency:'USD'},risk:{perTrade:1,dailyLoss:3,maxTrades:3},preferences:{email:true,sync:true,weekly:true},activity:[{id:'ev1',text:'Trade history synced · Main trading account',time:'Oct 16, 15:42',type:'sync'},{id:'ev2',text:'New license issued · Strategy lab',time:'Oct 01, 12:00',type:'license'}],theme:'light'});}
 
 // Upgrade existing browser demos without discarding their trades or local edits.
 export function migrateUserWorkspaces(db){
  for(const entry of db.entries)entry.userId??='u1';
- for(const playbook of db.playbooks)playbook.userId??='u1';
  db.userSettings??={};
  if(!db.userWorkspaceVersion){
   for(const user of db.users.filter(u=>['u2','u3'].includes(u.id))){
-   db.entries.push({id:'journal-'+user.id,userId:user.id,date:DEMO_TODAY,title:user.id==='u2'?'Protecting the funded account.':'Respect the daily risk limit.',mood:'Focused',rating:4,content:user.id==='u2'?'Reviewed my funded account trades. The focus is consistent position sizing and only taking setups that match the plan.':'Reviewed my personal account. Waiting for clean structure matters more than increasing trade frequency.'});
-   for(const template of seedPlaybooks)db.playbooks.push({...structuredClone(template),id:template.id+'-'+user.id,userId:user.id});
+   db.entries.push({id:'journal-'+user.id,userId:user.id,date:DEMO_TODAY,title:user.id==='u2'?'Protecting the funded account.':'Respect the daily risk limit.',mood:'Focused',rating:4,content:user.id==='u2'?'Reviewed automated executions on my funded account. Checked EA position sizing, commissions, and daily drawdown.':'Reviewed EA history on my personal account. Checked execution frequency and the daily risk budget.'});
   }
   db.userWorkspaceVersion=1;
+ }
+ return migrateEAOnly(db);
+}
+
+export function migrateEAOnly(db){
+ if(!db.eaHistoryVersion){
+  const sample=new Map(seedTrades.map(t=>[t.id,t]));
+  const imported=[],archived=[];
+  for(const trade of db.trades||[]){
+   const original=sample.get(trade.id);
+   if(original&&original.ticket===trade.ticket){trade.source='EA sync';trade.eaName=original.eaName;trade.magic=original.magic;}
+   if(trade.source==='EA sync'){trade.eaName??='Connected EA';trade.magic??=null;delete trade.setup;imported.push(trade);}
+   else archived.push(trade);
+  }
+  db.trades=imported;db.archivedManualTrades=[...(db.archivedManualTrades||[]),...archived];
+  if(db.playbooks)db.archivedPlaybooks=db.playbooks;
+  delete db.playbooks;db.eaHistoryVersion=1;
  }
  return db;
 }

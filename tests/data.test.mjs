@@ -7,4 +7,15 @@ test('calendar uses a Monday-first grid and handles leap years',()=>{const oct=c
 test('group totals reconcile with the ledger after fees',()=>{const rows=filterTrades(seedTrades,{accountIds:['a1'],range:'month'}),m=metrics(rows);const sessions=groupTrades(rows,'session');assert.equal(sessions.reduce((s,x)=>s+x.total,0),m.total);assert.ok(Math.abs(sessions.reduce((s,x)=>s+x.pnl,0)-m.pnl)<.0001);});
 test('each seeded trade belongs to an existing single-account license',()=>{assert.equal(new Set(seedAccounts.map(a=>a.license)).size,seedAccounts.length);assert.equal(new Set(seedTrades.map(t=>t.ticket)).size,seedTrades.length);assert.ok(seedTrades.every(t=>seedAccounts.some(a=>a.id===t.accountId)));});
 
-test('legacy workspace migration preserves existing data and assigns owners once',async()=>{const {migrateUserWorkspaces,seedUsers,seedEntries,seedPlaybooks}=await import('../src/data.js');const legacy={users:structuredClone(seedUsers),entries:structuredClone(seedEntries),playbooks:structuredClone(seedPlaybooks)};migrateUserWorkspaces(legacy);const count=legacy.entries.length;assert.ok(legacy.entries.filter(e=>e.id.startsWith('j')).every(e=>e.userId));assert.equal(legacy.entries.find(e=>e.id==='j1').userId,'u1');assert.ok(legacy.entries.some(e=>e.userId==='u2'));migrateUserWorkspaces(legacy);assert.equal(legacy.entries.length,count);});
+test('legacy workspace migration preserves existing data and assigns owners once',async()=>{const {migrateUserWorkspaces,seedUsers,seedEntries}=await import('../src/data.js');const legacy={users:structuredClone(seedUsers),entries:structuredClone(seedEntries)};migrateUserWorkspaces(legacy);const count=legacy.entries.length;assert.ok(legacy.entries.filter(e=>e.id.startsWith('j')).every(e=>e.userId));assert.equal(legacy.entries.find(e=>e.id==='j1').userId,'u1');assert.ok(legacy.entries.some(e=>e.userId==='u2'));migrateUserWorkspaces(legacy);assert.equal(legacy.entries.length,count);});
+
+test('EA-only migration archives legacy manual entries and preserves user edits',async()=>{
+ const {migrateEAOnly}=await import('../src/data.js');const first=structuredClone(seedTrades[0]);first.source='Manual';first.notes='Keep my review';
+ const manual={id:'custom-manual',ticket:999,source:'Manual',pnl:500};const legacy={trades:[first,manual],playbooks:[{id:'old-setup'}]};
+ migrateEAOnly(legacy);assert.equal(legacy.trades.length,1);assert.equal(legacy.trades[0].source,'EA sync');assert.equal(legacy.trades[0].notes,'Keep my review');assert.equal(legacy.archivedManualTrades[0].id,'custom-manual');assert.equal(legacy.archivedPlaybooks.length,1);assert.ok(!legacy.playbooks);migrateEAOnly(legacy);assert.equal(legacy.archivedManualTrades.length,1);
+});
+test('trade filters reject non-EA history and search by advisor and magic number',()=>{
+ const manual={...seedTrades[0],id:'manual',source:'Manual'};assert.equal(filterTrades([manual],{range:'all'}).length,0);
+ const byName=filterTrades(seedTrades,{range:'all',query:'NOVA Retracement EA'});assert.ok(byName.length);assert.ok(byName.every(t=>t.eaName==='NOVA Retracement EA'));
+ const byMagic=filterTrades(seedTrades,{range:'all',query:'202602'});assert.ok(byMagic.length);assert.ok(byMagic.every(t=>t.magic===202602));assert.ok(seedTrades.every(t=>t.source==='EA sync'&&t.eaName&&t.magic));
+});

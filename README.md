@@ -1,6 +1,6 @@
 # Structure — Market Structure Journal
 
-A complete, responsive trading journal **UI/UX prototype** with separate trader and administrator workspaces. Inspired by a clean automated-journal dashboard, with a warm gold identity, focused analytics, and connected interaction flows.
+A complete, responsive **EA-only automated trading journal UI/UX prototype** with separate trader and administrator workspaces. Inspired by a clean automated-journal dashboard, with a warm gold identity, focused EA analytics, and connected interaction flows. Trade history comes exclusively from Expert Advisor executions on connected MT5 accounts; there is no playbook or manual trade creation.
 
 **Live private preview:** https://market-structure-journal.m-anasayub80.chatgpt.site
 
@@ -42,11 +42,10 @@ The complete editable source is included in `src/`, not just compiled output. `d
 | Route | Experience |
 | --- | --- |
 | `#/user/overview` | Net P&L, win rate, profit factor, equity/drawdown toggle, daily performance, session breakdown, recent trades, daily-review entry |
-| `#/user/trades` | Search, instrument/session/outcome filters, account/date scope, pagination, trade detail, setup/mindset/notes review, manual trade creation, CSV export |
+| `#/user/trades` | Search, instrument/session/outcome filters, account/date scope, pagination, read-only EA execution detail, review notes, EA name/magic number search, CSV export |
 | `#/user/calendar` | Monday-first monthly grid, previous/next month, monthly stats, profit/loss day colors, day details, actual daily trades, daily reflections |
-| `#/user/analytics` | Overview, session, instrument, setup, weekday, and risk/psychology tabs; real calculations from selected sample trades |
+| `#/user/analytics` | Overview, session, instrument, Expert Advisor, weekday, and risk-analysis tabs; real calculations from selected sample trades |
 | `#/user/journal` | Searchable reflections, create/edit/delete, daily mood, process rating, date, and review ritual |
-| `#/user/playbook` | Setup cards, checklist, timeframe, performance per setup, create/edit, recent setup trades |
 | `#/user/accounts` | Multiple licenses/accounts, connection details, activation, rename, disconnect, license status, connection wizard |
 | `#/user/reports` | Review report, trade ledger export, metric summary export, daily-result export |
 | `#/user/settings` | Profile, preferences, appearance, risk plan, notification preferences, security flow preview, reset demo |
@@ -58,7 +57,7 @@ The complete editable source is included in `src/`, not just compiled output. `d
 | --- | --- |
 | `#/admin/overview` | Platform P&L, all users, active licenses, connected accounts, trader performance, recent activity |
 | `#/admin/users` | Search users, add user, optionally issue initial license, click any user to open their complete panel, suspend/restore access |
-| `#/admin/users/:userId/:page` | Full selected-user workspace: overview, trades, calendar, analytics, journal, playbook, accounts, reports, settings, help |
+| `#/admin/users/:userId/:page` | Full selected-user workspace: overview, trades, calendar, analytics, journal, accounts, reports, settings, help |
 | `#/admin/licenses` | All user licenses, issue to a selected owner, status changes, expiry edits, owner details |
 | `#/admin/accounts` | All trading accounts and their individual equity, ownership, license, and connection state |
 | `#/admin/analytics` | Platform statistics with account/date/instrument/session filtering |
@@ -79,6 +78,16 @@ The role-specific navigation prevents accidental exposure of admin controls in t
 
 Any syntactically valid demo email and password of at least eight characters can preview sign-in. Passwords are never persisted. Admin demo entry exists only to explore the design and must be removed when real authentication is introduced.
 
+## EA-only history contract
+
+- Users and administrators cannot add, edit, or delete broker execution records from the web interface.
+- Trade history, calendar, analytics, account results, and reports are derived from EA-synced executions only.
+- EA name and magic number are imported metadata, not editable strategy definitions. Performance can be compared by Expert Advisor.
+- Optional execution notes, reviewed flags, and daily monitoring reflections annotate results without altering execution data.
+- A license still represents one MT5 account. Multiple EAs on that account share the account license and are distinguished by imported EA identity/magic number.
+- Legacy synthetic sample rows are upgraded to the new EA fixture metadata while preserving local reviews. Previously user-created manual entries and playbooks are archived locally and excluded from every active view and calculation. Migration is idempotent; it does not discard those old local records.
+- Real ingestion must verify EA origin, owner/account scope, and idempotency on the server. This frontend remains a simulation until the MT5 bridge/backend phase is implemented.
+
 ## Core ownership model
 
 **A user can own many licenses. Each license represents exactly one journal account. Each journal account can bind to one MT5 account + broker server.** Multiple chart EAs using the same MT5 account must share that account’s journal identity, rather than creating duplicate journal accounts.
@@ -93,8 +102,6 @@ erDiagram
     TRADING_ACCOUNT ||--o{ ACCOUNT_SNAPSHOT : records
     TRADING_ACCOUNT ||--o{ SYNC_EVENT : emits
     USER ||--o{ JOURNAL_ENTRY : writes
-    USER ||--o{ PLAYBOOK : defines
-    PLAYBOOK ||--o{ TRADE : classifies
     USER ||--o{ AUDIT_EVENT : performs
 ```
 
@@ -105,15 +112,14 @@ erDiagram
 | User | `id`, `email` unique, `display_name`, `role` (`admin` / `user`), `status`, timezone, created timestamp |
 | License | `id`, `user_id`, hashed key, masked key prefix, status, expiry, issued/revoked timestamps, last binding timestamp |
 | Trading account | `id`, `license_id` unique, `user_id`, nickname, broker, MT5 login, broker server, currency, type, initial balance; unique normalized `(server, login)` |
-| Trade | `id`, `account_id`, position/deal IDs, symbol, direction, timestamps, entry/exit, volume, gross profit, commissions, fees, swap, setup, source, initial risk |
+| Trade | `id`, `account_id`, position/deal IDs, symbol, direction, timestamps, entry/exit, volume, gross profit, commissions, fees, swap, EA identifier/name, magic number, source, initial risk |
 | Account snapshot | `account_id`, timestamp, balance, equity, margin, open P&L, deposit/withdrawal adjustment; unique account/timestamp key |
 | Journal entry | `id`, `user_id`, optional `account_id`, trading date, title, content, mood, process rating |
-| Playbook | `id`, `user_id`, name, description, timeframe, checklist rules, archived flag |
-| Trade review | `trade_id`, reviewer owner, notes, mindset, reviewed flag, optional chart attachment references |
+| Trade review | `trade_id`, reviewer owner, notes, reviewed flag, optional chart attachment references |
 | Sync event | `account_id`, idempotency key, cursor, heartbeat, event type, processing state, error code |
 | Audit event | Actor, action, target type/ID, timestamp, metadata; append-only on the server |
 
-Journals, playbooks, profile settings, risk plans, and notification preferences are scoped to the selected owner in the demo as well as the production design. Admin platform screens aggregate users; admin user-panel screens select exactly one owner. Sample users Sarah and James have their own example reflections and starter playbooks. New users begin with empty journals/playbooks and zero performance until they have data. Existing local workspaces are migrated without discarding edits.
+Journals, profile settings, risk plans, and notification preferences are scoped to the selected owner in the demo as well as the production design. Admin platform screens aggregate users; admin user-panel screens select exactly one owner. Sample users Sarah and James have their own example EA monitoring reflections. New users begin with empty journals and zero performance until they have data. Existing local workspaces are migrated without discarding edits.
 
 ## Frontend architecture
 
@@ -145,7 +151,7 @@ market-structure-journal/
 - Global view state tracks administrator role separately from selected user-panel context, route, selected account, date preset, instrument, session, outcome, search, pagination, and tabs. `workspaceHref` preserves the selected owner across sidebar links, dashboard shortcuts, search navigation, and reports.
 - A versioned `structure-v1` localStorage document persists sample entities and user edits.
 - Transient navigation/filter state is intentionally not persisted. Reload defaults to all accounts and the current demo month.
-- `filterTrades` first scopes allowed account IDs, then applies account, period, instrument, session, result, and query filters.
+- `filterTrades` accepts only EA-sync records, scopes allowed account IDs, then applies account, period, instrument, session, result, and query filters. Search also matches the EA name and magic number. Removed trade-entry form/action handlers cannot create records through a stale UI action.
 - `metrics` and `groupTrades` derive every statistic from the current ledger. CSV exports use the same selected data as analytics.
 - User-provided text is HTML-escaped before rendering. CSV fields are quoted and risky formula prefixes are neutralized.
 - User and account changes produce local activity events. Production audit records must be generated by the server.
@@ -181,7 +187,7 @@ A license already bound to an MT5 login cannot be rebound from the standard conn
 
 1. Open **Users**, add a trader, and optionally issue a first license.
 2. Click any user row (or a trader in the platform leaderboard) to open their full workspace at `#/admin/users/:userId/overview`.
-3. Use the same pages as the user: dashboard, trade history/details, calendar/day views, analytics, journal, playbook, accounts/licenses, reports, settings, and help. All reads, edits, and exports use that selected user’s records.
+3. Use the same pages as the user: dashboard, trade history/details, calendar/day views, analytics, journal, accounts/licenses, reports, settings, and help. All reads, edits, and exports use that selected user’s records.
 4. A persistent **Viewing [name]’s panel** banner identifies the context. Its selector switches users; **User details** opens lifetime stats and management actions; **Back to admin** returns to the user list. Changing users clears filters to avoid carrying another user’s account selection.
 5. Issue additional licenses with account type, opening balance, and expiry.
 6. Inspect account-level stats, status, heartbeat, and aggregate performance.
@@ -216,9 +222,10 @@ flowchart TD
 5. Ingress validates license/account identity, timestamp/nonce or signature, request size, and schema, then queues processing.
 6. The worker normalizes symbol suffixes, broker time offsets/DST, commissions, swaps, partial closes, hedging/netting positions, and deposits/withdrawals.
 7. Idempotency is enforced on `(account_id, broker_server, deal_ticket)` and batch keys; reconnecting must never duplicate trades.
-8. Closed positions derive realized P&L; open-position equity comes from snapshots. Manual entries use separate identifiers to avoid collisions.
-9. Server status derives from last heartbeat, not a client toggle. A configurable timeout marks the connection offline.
-10. Expiry/revocation blocks new sync, invalidates credentials, and retains historical journal data according to retention rules.
+8. Import only positions whose opening execution is verified as originating from a registered EA. Store EA identity, magic number, and original broker execution metadata. Keep all subsequent closes, partial closes, SL/TP exits, and charges linked to that EA-origin position even when the closing deal is server-generated. Exclude discretionary/manual-origin positions from journal history and its performance calculations. There is no browser trade-creation endpoint.
+9. Closed positions derive realized EA P&L; account-wide broker equity comes from snapshots and must be labeled separately if unrelated positions affect the account. Journal reports and trade exports include only EA-origin positions.
+10. Server status derives from last heartbeat, not a client toggle. A configurable timeout marks the connection offline.
+11. Expiry/revocation blocks new sync, invalidates credentials, and retains historical journal data according to retention rules.
 
 ### Suggested API surface
 
@@ -229,11 +236,10 @@ flowchart TD
 | `GET /accounts` | Owner or administrator | Scoped account list |
 | `POST /licenses/activate` | Owner | Validate and bind a license |
 | `POST /accounts/:id/connect`, `/disconnect` | Owner or administrator | Manage bridge binding/session |
-| `GET /trades`, `POST /trades` | Scoped account owner | Trade ledger/manual entries |
-| `PATCH /trades/:id/review` | Scoped account owner | Setup, emotion, notes |
+| `GET /trades` | Scoped account owner | Read-only EA execution ledger; creation is restricted to verified connector ingestion |
+| `PATCH /trades/:id/review` | Scoped account owner | Execution notes and reviewed flag only; broker/EA fields remain immutable |
 | `GET /analytics`, `/calendar`, `/reports` | Scoped owner or administrator | Server-calculated filtered performance |
-| `GET/POST/PATCH/DELETE /journal` | Owner | Daily reflections |
-| `GET/POST/PATCH /playbooks` | Owner | Setup definitions |
+| `GET/POST/PATCH/DELETE /journal` | Owner | Daily EA monitoring reflections |
 | `POST /sync/handshake`, `/sync/heartbeat`, `/sync/deals` | Account-scoped connector token | MT5 ingestion |
 | `GET/POST/PATCH /admin/users` | Administrator | User management and invitations |
 | `GET/POST/PATCH /admin/licenses` | Administrator | Issue, suspend, renew, revoke, rebind |
@@ -244,8 +250,9 @@ flowchart TD
 | Action | User | Administrator |
 | --- | --- | --- |
 | Read personal trades, stats, accounts | Own records | All records |
-| Add manual trades / review notes | Own records | Selected user’s records through the admin user panel; audit server-side |
-| Read and manage journals / playbooks / settings | Own records | Selected user’s records through the admin user panel; audit server-side |
+| Annotate synced EA executions | Own records; notes/reviewed flag only | Selected user’s notes through the admin user panel; audit server-side |
+| Create or change broker execution records from the browser | No | No; verified ingestion only |
+| Read and manage journals / settings | Own records | Selected user’s records through the admin user panel; audit server-side |
 | Activate license | Assigned licenses only | Issue and assign licenses |
 | Change license expiry/status | No | Yes |
 | Create/suspend users | No | Yes |
@@ -256,7 +263,7 @@ Admin drill-through must preserve the administrator identity and selected target
 
 ## Validation and remaining scope
 
-- Twenty-nine automated tests cover financial calculations, fee reconciliation, account scoping, Monday-first/leap-year calendars, every route rendering, trade reviews, journal CRUD, admin user/license creation, duplicate emails, permission guards, the full connection wizard, suspension propagation, manual trades, setup renaming, risk preferences, full admin drill-through, every selected-user page, owner-specific calendar/analytics totals, separate journals/playbooks/settings, migration, empty/invalid users, and return navigation.
+- Thirty-one automated tests cover calculations, fee reconciliation, account scoping, calendars, routing, review notes, journals, admin user/license creation, connection flow, suspension, risk preferences, full admin drill-through, owner-specific data/settings, empty/invalid users, and return navigation. EA-only regressions verify removed manual-entry handlers and playbook routes, immutable broker/EA fields during note edits, EA analytics, source filtering, advisor/magic-number search, and safe migration of existing demo data.
 - JavaScript syntax checks and a clean static build run before release.
 - The interaction tests use a lightweight DOM contract harness, not a real browser. Browser layout, responsive screenshots, and full assistive-technology checks were not available in this build environment; complete those before production release.
 - Backend auth/authorization, real MT5 EA, license service, email, screenshot uploads, open-trade monitoring, deposits/withdrawals reconciliation, billing, cloud persistence, and production security are future work.
