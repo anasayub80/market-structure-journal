@@ -57,7 +57,8 @@ The complete editable source is included in `src/`, not just compiled output. `d
 | Route | Experience |
 | --- | --- |
 | `#/admin/overview` | Platform P&L, all users, active licenses, connected accounts, trader performance, recent activity |
-| `#/admin/users` | Search users, add user, optionally issue initial license, user details, all-time stats, account list, suspend/restore access |
+| `#/admin/users` | Search users, add user, optionally issue initial license, click any user to open their complete panel, suspend/restore access |
+| `#/admin/users/:userId/:page` | Full selected-user workspace: overview, trades, calendar, analytics, journal, playbook, accounts, reports, settings, help |
 | `#/admin/licenses` | All user licenses, issue to a selected owner, status changes, expiry edits, owner details |
 | `#/admin/accounts` | All trading accounts and their individual equity, ownership, license, and connection state |
 | `#/admin/analytics` | Platform statistics with account/date/instrument/session filtering |
@@ -112,7 +113,7 @@ erDiagram
 | Sync event | `account_id`, idempotency key, cursor, heartbeat, event type, processing state, error code |
 | Audit event | Actor, action, target type/ID, timestamp, metadata; append-only on the server |
 
-Production journals/playbooks are user-owned. This demo has one persistent user-owned journal/playbook collection and a single user persona, while admin screens aggregate the sample users' account and trade data.
+Journals, playbooks, profile settings, risk plans, and notification preferences are scoped to the selected owner in the demo as well as the production design. Admin platform screens aggregate users; admin user-panel screens select exactly one owner. Sample users Sarah and James have their own example reflections and starter playbooks. New users begin with empty journals/playbooks and zero performance until they have data. Existing local workspaces are migrated without discarding edits.
 
 ## Frontend architecture
 
@@ -141,7 +142,7 @@ market-structure-journal/
 ### Application state
 
 - Hash routing enables every view to work on ordinary static hosting without rewrite rules.
-- Global view state tracks role, route, selected account, date preset, instrument, session, outcome, search, pagination, and tabs.
+- Global view state tracks administrator role separately from selected user-panel context, route, selected account, date preset, instrument, session, outcome, search, pagination, and tabs. `workspaceHref` preserves the selected owner across sidebar links, dashboard shortcuts, search navigation, and reports.
 - A versioned `structure-v1` localStorage document persists sample entities and user edits.
 - Transient navigation/filter state is intentionally not persisted. Reload defaults to all accounts and the current demo month.
 - `filterTrades` first scopes allowed account IDs, then applies account, period, instrument, session, result, and query filters.
@@ -179,12 +180,14 @@ A license already bound to an MT5 login cannot be rebound from the standard conn
 ### Administrator: create → license → monitor
 
 1. Open **Users**, add a trader, and optionally issue a first license.
-2. Open the user profile to inspect lifetime results and their account list.
-3. Issue additional licenses with account type, opening balance, and expiry.
-4. Inspect account-level stats, status, heartbeat, and aggregate performance.
-5. Suspend a user to suspend their active licenses and disconnect their account states in this demo.
-6. Restoring the user restores the user status only; license statuses are separately reviewed and restored.
-7. Review the local activity log or export it.
+2. Click any user row (or a trader in the platform leaderboard) to open their full workspace at `#/admin/users/:userId/overview`.
+3. Use the same pages as the user: dashboard, trade history/details, calendar/day views, analytics, journal, playbook, accounts/licenses, reports, settings, and help. All reads, edits, and exports use that selected user’s records.
+4. A persistent **Viewing [name]’s panel** banner identifies the context. Its selector switches users; **User details** opens lifetime stats and management actions; **Back to admin** returns to the user list. Changing users clears filters to avoid carrying another user’s account selection.
+5. Issue additional licenses with account type, opening balance, and expiry.
+6. Inspect account-level stats, status, heartbeat, and aggregate performance.
+7. Suspend a user to suspend their active licenses and disconnect their account states in this demo.
+8. Restoring the user restores the user status only; license statuses are separately reviewed and restored.
+9. Review the local activity log or export it.
 
 Invitation status is represented in the UI, but no invitation is delivered.
 
@@ -241,19 +244,19 @@ flowchart TD
 | Action | User | Administrator |
 | --- | --- | --- |
 | Read personal trades, stats, accounts | Own records | All records |
-| Add manual trades / review notes | Own records | Explicit audited support workflow |
-| Create journals / playbooks | Own records | Own records; support access must be separately authorized |
+| Add manual trades / review notes | Own records | Selected user’s records through the admin user panel; audit server-side |
+| Read and manage journals / playbooks / settings | Own records | Selected user’s records through the admin user panel; audit server-side |
 | Activate license | Assigned licenses only | Issue and assign licenses |
 | Change license expiry/status | No | Yes |
 | Create/suspend users | No | Yes |
 | Read cross-user analytics and audit | No | Yes |
 | Ingest MT5 deals | Account-scoped connector only | No browser-level ingestion bypass |
 
-Enforce ownership in every database query/API operation. Do not accept a client-supplied role or owner ID as proof of access. Production also requires session revocation, secure HttpOnly cookies, CSRF protection for mutations, rate limits, invitation verification, account suspension checks, signed storage URLs, secret management, migrations, backups, monitoring, and server-side audit logging.
+Admin drill-through must preserve the administrator identity and selected target separately, with actor and target owner in every audit record. The demo hash route is not proof of authorization; require an authenticated administrator session before reading any selected-user data. Enforce ownership in every database query/API operation. Do not accept a client-supplied role or owner ID as proof of access. Production also requires session revocation, secure HttpOnly cookies, CSRF protection for mutations, rate limits, invitation verification, account suspension checks, signed storage URLs, secret management, migrations, backups, monitoring, and server-side audit logging.
 
 ## Validation and remaining scope
 
-- Twenty automated tests cover financial calculations, fee reconciliation, account scoping, Monday-first/leap-year calendars, every route rendering, trade reviews, journal CRUD, admin user/license creation, duplicate emails, permission guards, the full connection wizard, suspension propagation, manual trades, setup renaming, and risk preferences.
+- Twenty-nine automated tests cover financial calculations, fee reconciliation, account scoping, Monday-first/leap-year calendars, every route rendering, trade reviews, journal CRUD, admin user/license creation, duplicate emails, permission guards, the full connection wizard, suspension propagation, manual trades, setup renaming, risk preferences, full admin drill-through, every selected-user page, owner-specific calendar/analytics totals, separate journals/playbooks/settings, migration, empty/invalid users, and return navigation.
 - JavaScript syntax checks and a clean static build run before release.
 - The interaction tests use a lightweight DOM contract harness, not a real browser. Browser layout, responsive screenshots, and full assistive-technology checks were not available in this build environment; complete those before production release.
 - Backend auth/authorization, real MT5 EA, license service, email, screenshot uploads, open-trade monitoring, deposits/withdrawals reconciliation, billing, cloud persistence, and production security are future work.

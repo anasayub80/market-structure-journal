@@ -47,4 +47,19 @@ export function filterTrades(trades,{account='all',accountIds,range='month',symb
  return trades.filter(t=>(!accountIds||accountIds.includes(t.accountId))&&(account==='all'||t.accountId===account)&&t.date>=start&&(symbol==='all'||t.symbol===symbol)&&(session==='all'||t.session===session)&&(outcome==='all'||(outcome==='win'?t.pnl-t.fees>0:t.pnl-t.fees<=0))&&(!query||`${t.symbol} ${t.setup} ${t.ticket} ${t.date}`.toLowerCase().includes(query.toLowerCase())));
 }
 export function calendarCells(year,month){const first=new Date(year,month,1),offset=(first.getDay()+6)%7,days=new Date(year,month+1,0).getDate();return Array.from({length:Math.ceil((offset+days)/7)*7},(_,i)=>{const date=new Date(year,month,i-offset+1);return {day:date.getDate(),date:`${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`,current:date.getMonth()===month};});}
-export function loadState(){try{const s=JSON.parse(localStorage.getItem('structure-v1'));if(s?.version===1)return s;}catch{}return {version:1,users:structuredClone(seedUsers),accounts:structuredClone(seedAccounts),trades:structuredClone(seedTrades),entries:structuredClone(seedEntries),playbooks:structuredClone(seedPlaybooks),profile:{name:'Anas Ayub',email:'anas@example.com',timezone:'Asia/Karachi',currency:'USD'},risk:{perTrade:1,dailyLoss:3,maxTrades:3},preferences:{email:true,sync:true,weekly:true},activity:[{id:'ev1',text:'Trade history synced · Main trading account',time:'Oct 16, 15:42',type:'sync'},{id:'ev2',text:'New license issued · Strategy lab',time:'Oct 01, 12:00',type:'license'}],theme:'light'};}
+export function loadState(){try{const s=JSON.parse(localStorage.getItem('structure-v1'));if(s?.version===1)return migrateUserWorkspaces(s);}catch{}return migrateUserWorkspaces({version:1,users:structuredClone(seedUsers),accounts:structuredClone(seedAccounts),trades:structuredClone(seedTrades),entries:structuredClone(seedEntries),playbooks:structuredClone(seedPlaybooks),profile:{name:'Anas Ayub',email:'anas@example.com',timezone:'Asia/Karachi',currency:'USD'},risk:{perTrade:1,dailyLoss:3,maxTrades:3},preferences:{email:true,sync:true,weekly:true},activity:[{id:'ev1',text:'Trade history synced · Main trading account',time:'Oct 16, 15:42',type:'sync'},{id:'ev2',text:'New license issued · Strategy lab',time:'Oct 01, 12:00',type:'license'}],theme:'light'});}
+
+// Upgrade existing browser demos without discarding their trades or local edits.
+export function migrateUserWorkspaces(db){
+ for(const entry of db.entries)entry.userId??='u1';
+ for(const playbook of db.playbooks)playbook.userId??='u1';
+ db.userSettings??={};
+ if(!db.userWorkspaceVersion){
+  for(const user of db.users.filter(u=>['u2','u3'].includes(u.id))){
+   db.entries.push({id:'journal-'+user.id,userId:user.id,date:DEMO_TODAY,title:user.id==='u2'?'Protecting the funded account.':'Respect the daily risk limit.',mood:'Focused',rating:4,content:user.id==='u2'?'Reviewed my funded account trades. The focus is consistent position sizing and only taking setups that match the plan.':'Reviewed my personal account. Waiting for clean structure matters more than increasing trade frequency.'});
+   for(const template of seedPlaybooks)db.playbooks.push({...structuredClone(template),id:template.id+'-'+user.id,userId:user.id});
+  }
+  db.userWorkspaceVersion=1;
+ }
+ return db;
+}
