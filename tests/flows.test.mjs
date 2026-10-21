@@ -11,7 +11,7 @@ function route(hash){location.hash=hash;windowEvents.hashchange();}
 async function click(action){await events.click({target:{closest:()=>({dataset:{action},disabled:false}),classList:{contains:()=>false}}});}
 function submit(id,fields,dataset={}){events.submit({preventDefault(){},target:{id,dataset,fields,checkValidity:()=>true}});}
 const db=()=>JSON.parse(saved.get('structure-v1'));
-test('all user and admin pages render without runtime errors',()=>{for(const role of ['user','admin'])for(const page of role==='user'?['overview','trades','calendar','analytics','journal','accounts','reports','settings','help']:['overview','users','licenses','accounts','analytics','calendar','connections','activity','settings','help']){route(`#/${role}/${page}`);assert.match(nodes.app.innerHTML,/<main/);assert.ok(!nodes.app.innerHTML.includes('NaN'));assert.ok(nodes.app.innerHTML.includes('page-heading'));}for(const page of ['login','register','forgot','onboarding']){route('#/'+page);assert.ok(nodes.app.innerHTML.includes('auth-layout'));}});
+test('all user and admin pages render without runtime errors',()=>{for(const role of ['user','admin'])for(const page of role==='user'?['overview','trades','calendar','analytics','journal','accounts','imports','reports','settings','help']:['overview','users','licenses','accounts','analytics','calendar','connections','activity','settings','help']){route(`#/${role}/${page}`);assert.match(nodes.app.innerHTML,/<main/);assert.ok(!nodes.app.innerHTML.includes('NaN'));assert.ok(nodes.app.innerHTML.includes('page-heading'));}for(const page of ['login','register','forgot','onboarding']){route('#/'+page);assert.ok(nodes.app.innerHTML.includes('auth-layout'));}});
 test('role routes keep administrator pages out of the user workspace',()=>{route('#/user/users');assert.ok(nodes.app.innerHTML.includes('Every trade tells a story'));assert.ok(!nodes.app.innerHTML.includes('User management'));});
 test('trade detail opens a review form and persists edits',async()=>{route('#/user/trades');await click('trade:t1');assert.ok(nodes.overlay.innerHTML.includes('trade-review-form'));submit('trade-review-form',{setup:'Liquidity sweep',emotion:'Calm',notes:'Reviewed in flow test',reviewed:'on'},{id:'t1'});assert.equal(db().trades.find(t=>t.id==='t1').notes,'Reviewed in flow test');});
 test('user route cannot mutate another user trade',()=>{route('#/user/trades');const t=db().trades.find(t=>t.accountId==='a4');submit('trade-review-form',{setup:'Liquidity sweep',emotion:'Calm',notes:'Forbidden edit'},{id:t.id});assert.notEqual(db().trades.find(x=>x.id===t.id).notes,'Forbidden edit');});
@@ -34,7 +34,7 @@ test('clicking a user opens a complete scoped workspace and preserves admin acce
  assert.ok(!nodes.app.innerHTML.includes('Swing portfolio'));
 });
 test('all user pages work inside an admin-selected user panel',()=>{
- for(const page of ['overview','trades','calendar','analytics','journal','accounts','reports','settings','help']){
+ for(const page of ['overview','trades','calendar','analytics','journal','accounts','imports','reports','settings','help']){
   route('#/admin/users/u2/'+page);assert.ok(nodes.app.innerHTML.includes('Viewing Sarah Chen’s panel'));assert.ok(nodes.app.innerHTML.includes('page-heading'));assert.ok(!nodes.app.innerHTML.includes('NaN'));
  }
 });
@@ -88,5 +88,5 @@ test('execution review cannot overwrite broker data or EA metadata',async()=>{
 });
 test('EA analytics and history use imported advisor identity',async()=>{
  route('#/user/analytics');await click('analytics:Expert Advisors');assert.ok(nodes.app.innerHTML.includes('NOVA Retracement EA'));assert.ok(nodes.app.innerHTML.includes('Structure Continuation EA'));
- route('#/user/trades');assert.ok(nodes.app.innerHTML.includes('EA sync only'));assert.ok(nodes.app.innerHTML.includes('Expert Advisor'));assert.ok(!nodes.app.innerHTML.includes('· Manual'));
+ route('#/user/trades');assert.ok(nodes.app.innerHTML.includes('EA sync only'));assert.ok(nodes.app.innerHTML.includes('EA / source'));assert.ok(!nodes.app.innerHTML.includes('· Manual'));
 });

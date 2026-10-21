@@ -1,0 +1,5 @@
+<?xml version="1.0"?><Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet"><Worksheet><Table>
+<Row><Cell><Data ss:Type="String">Account:</Data></Cell><Cell><Data ss:Type="String">12345678 (Broker-Live, USD)</Data></Cell></Row>
+<Row><Cell><Data>Time</Data></Cell><Cell><Data>Position</Data></Cell><Cell><Data>Symbol</Data></Cell><Cell><Data>Type</Data></Cell><Cell><Data>Volume</Data></Cell><Cell><Data>Price</Data></Cell><Cell><Data>Time</Data></Cell><Cell><Data>Price</Data></Cell><Cell><Data>Commission</Data></Cell><Cell><Data>Swap</Data></Cell><Cell><Data>Profit</Data></Cell></Row>
+<Row><Cell><Data>2024.01.05 08:00:00</Data></Cell><Cell><Data>8001001</Data></Cell><Cell><Data>XAUUSDm</Data></Cell><Cell><Data>buy</Data></Cell><Cell><Data>0.10</Data></Cell><Cell><Data>2030.00</Data></Cell><Cell><Data>2024.01.05 12:00:00</Data></Cell><Cell><Data>2040.00</Data></Cell><Cell><Data>-3.00</Data></Cell><Cell><Data>-1.00</Data></Cell><Cell><Data>100.00</Data></Cell></Row>
+</Table></Worksheet></Workbook>

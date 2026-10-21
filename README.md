@@ -1,276 +1,184 @@
-# Structure — Market Structure Journal
+# Structure — MT5 Trading Journal
 
-A complete, responsive **EA-only automated trading journal UI/UX prototype** with separate trader and administrator workspaces. Inspired by a clean automated-journal dashboard, with a warm gold identity, focused EA analytics, and connected interaction flows. Trade history comes exclusively from Expert Advisor executions on connected MT5 accounts; there is no playbook or manual trade creation.
+A working **MT5 file-import journal** with trader and administrator workspaces. Upload an exported trade-history report, review the file, and import completed executions into dashboards, calendars, analytics, and reports. There is no playbook or individual trade-entry form.
 
-**Live private preview:** https://market-structure-journal.m-anasayub80.chatgpt.site
+**Website:** https://market-structure-journal.m-anasayub80.chatgpt.site
 
-**Source repository:** https://github.com/anasayub80/market-structure-journal
+**GitHub:** https://github.com/anasayub80/market-structure-journal
 
-> This is the frontend phase requested for design review. Sample trades, simulated authentication, license activation, and MT5 connections run locally in the browser. There is no live broker connection, backend, email delivery, or production authorization in this version. Do not enter real passwords, trading credentials, or real license secrets.
+## What works now
 
-## Run locally
+- Real local imports from MT5 HTML, MT5 SpreadsheetML/XML (including XML saved with an `.xlsx` extension), zipped XLSX, CSV and TSV.
+- Account ownership and selection, create an account from the report, metadata detection, date-order selection, optional broker UTC offset, preview, row issues, totals, duplicate skipping, import history, and batch undo.
+- Dashboard, equity/profit curve, trade history and reviews, monthly calendar and day details, session/instrument/EA/weekday/risk analytics, CSV reports, daily monitoring notes, and settings.
+- Administrator users list opens the selected user's full workspace and preserves their scope across all pages, imports, and exports.
+- Personal mode hides sample executions and accounts. Report data persists across refreshes in this browser. JSON backup downloads preserve a separate readable copy.
 
-Node.js 20 or newer. There are no runtime or build dependencies.
+**Important boundary:** file importing is functional with real reports. Data is stored locally in the browser, not in a cloud database. Sample authentication, invitation delivery, license verification, and automatic EA/MT5 syncing remain UI previews. The public website serves the application; a visitor's imported report is not uploaded to the host or embedded in source code. Use the same browser/origin to access local history. Clear-site-data operations remove it, so keep the original reports and download backups. JSON backups are exports; a JSON restore UI is not implemented.
 
-```bash
-npm run build
-npm run dev
-```
+## Quick start
 
-Open http://localhost:4173. The default view is the user dashboard; use the bottom-left profile menu to switch to the administrator workspace or preview sign-in.
+Node.js 20+ is sufficient. No install step or package dependencies are required.
 
 ```bash
 npm run check
 npm test
+npm run build
+npm run dev
 ```
 
-The complete editable source is included in `src/`, not just compiled output. `dist/` is the generated deployable site and is also committed for simple static hosting. Rebuild after changing source. The included development server serves `dist/`, so rebuild and refresh to see edits.
+Open http://localhost:4173. `dev` serves `dist/`; rebuild and refresh after source edits. The complete editable code, fixtures, assets, scripts, tests and compiled site are included.
 
-## Design system
+## How to import MT5 history
 
-- Light neutral canvas, white surfaces, restrained gold accents, semantic sage profits and muted rose losses.
-- Manrope headings and DM Sans interface text, with system-font fallbacks. Google Fonts is the only optional external presentation resource; all app logic, charts, and the brand mark ship locally.
-- Compact navigation, persistent account/date selectors, consistent table interactions, and generous reading space.
-- SVG equity charts, sparklines, session bars, metric visualizations, and original CSS illustrations. No screenshot-based interfaces or embedded external dashboards.
-- Light and dark appearance, desktop navigation collapse, mobile drawer navigation, responsive form layouts, and horizontal scrolling for dense tables and calendars.
-- Keyboard shortcuts (`Ctrl/Cmd + K`, Escape), modal focus trapping and return, accessible input labels, skip link, keyboard-openable trade rows, reduced-motion support, and visible focus indicators.
+1. In desktop MT5 open **Toolbox → History**.
+2. Select **All History** or the required date range.
+3. Right-click, choose **Positions**, then **Report → HTML**. Export the actual history table, not a screenshot, PDF, or visual analytics summary.
+4. In Structure open **Import history** (or **Import MT5 history** from the dashboard/trade history).
+5. Choose the file. Standard MT5 `YYYY.MM.DD` dates are the default. Explicit day-first/month-first options handle ambiguous spreadsheet dates.
+6. Select an existing journal account or create a file-import account. Verify account number, broker server and USD currency. Starting balance is optional; use the balance immediately before the exported period, not the report's closing balance.
+7. Review counts, P&L, preview rows and validation notes. Confirm **Import trades**.
+8. Open trades, dashboard, analytics or calendar. Repeat files skip existing tickets. Undo removes only the new trades added by a specific batch.
 
-## Implemented pages and interactions
+The MT5 export workflow and report sections are described in the [official MetaTrader 5 history-report help](https://www.metatrader5.com/en/terminal/help/trading_advanced/history_report).
 
-### User workspace
+A small [example CSV](public/assets/mt5-import-example.csv) ships with the app. It contains synthetic data and demonstrates the supported headers, with a USD net result of **193.90** across three trades.
 
-| Route | Experience |
+### Supported files and boundaries
+
+| Format / report | Behavior |
 | --- | --- |
-| `#/user/overview` | Net P&L, win rate, profit factor, equity/drawdown toggle, daily performance, session breakdown, recent trades, daily-review entry |
-| `#/user/trades` | Search, instrument/session/outcome filters, account/date scope, pagination, read-only EA execution detail, review notes, EA name/magic number search, CSV export |
-| `#/user/calendar` | Monday-first monthly grid, previous/next month, monthly stats, profit/loss day colors, day details, actual daily trades, daily reflections |
-| `#/user/analytics` | Overview, session, instrument, Expert Advisor, weekday, and risk-analysis tabs; real calculations from selected sample trades |
-| `#/user/journal` | Searchable reflections, create/edit/delete, daily mood, process rating, date, and review ritual |
-| `#/user/accounts` | Multiple licenses/accounts, connection details, activation, rename, disconnect, license status, connection wizard |
-| `#/user/reports` | Review report, trade ledger export, metric summary export, daily-result export |
-| `#/user/settings` | Profile, preferences, appearance, risk plan, notification preferences, security flow preview, reset demo |
-| `#/user/help` | Setup guidance, demo overview, exports, and product FAQ |
+| MT5 HTML completed positions | Repeated `Time` / `Price` headers become opening and closing values. Summary, balance, credit, orders, and open-position rows are excluded. |
+| MT5 XML / SpreadsheetML | Reads row/cell data and sparse column indexes. Detected by contents, even when the filename ends in `.xlsx`. |
+| Native XLSX | Reads ZIP worksheets, inline/shared strings, and stored/deflated XML using native browser APIs. Numeric Excel date serials are supported in timestamp columns. |
+| CSV / TSV | Comma, semicolon or tab delimiters, BOM, quoted fields and multiline comments. Header aliases cover standard MT5 names. |
+| Deals with position IDs | Pairs opens/closes by exact position identity; partial closes proportionally allocate opening commissions. Each closing deal becomes a realized execution. |
+| Deals without position IDs / missing opening records | Rejected or listed as row issues. Re-export completed Positions or include all opening history. The importer does not guess which hedged position a deal closed. |
+| Reversal (`in/out`) deal records | Listed as unsupported. Export completed Positions instead. |
+| PDF, images, binary `.xls`, encrypted or oversized workbooks | Not supported; actionable errors direct the user to HTML/history exports. |
+| Non-USD or mixed-currency reports | Blocked to avoid labeling another currency as dollars. Currency conversion is not implemented. Files missing currency information display a USD warning. |
 
-### Administrator workspace
+Limits: 10 MB input, 50,000 rows, 32 MB decompressed workbook XML, 512 ZIP entries, and 1,001 worksheet columns. English column names are supported. Very large imports can exceed the browser's localStorage quota; the save is atomic and a failed save leaves the previous journal intact.
 
-| Route | Experience |
-| --- | --- |
-| `#/admin/overview` | Platform P&L, all users, active licenses, connected accounts, trader performance, recent activity |
-| `#/admin/users` | Search users, add user, optionally issue initial license, click any user to open their complete panel, suspend/restore access |
-| `#/admin/users/:userId/:page` | Full selected-user workspace: overview, trades, calendar, analytics, journal, accounts, reports, settings, help |
-| `#/admin/licenses` | All user licenses, issue to a selected owner, status changes, expiry edits, owner details |
-| `#/admin/accounts` | All trading accounts and their individual equity, ownership, license, and connection state |
-| `#/admin/analytics` | Platform statistics with account/date/instrument/session filtering |
-| `#/admin/calendar` | Cross-account calendar and per-day trade details |
-| `#/admin/connections` | Account/server status, sample heartbeat timestamps, connection inspection, sync-event stream |
-| `#/admin/activity` | Local user/license/connection activity log and CSV export |
-| `#/admin/settings` | Shared settings interface in the administrator shell |
-| `#/admin/help` | Help resources and architecture boundaries |
+## Import architecture
 
-The role-specific navigation prevents accidental exposure of admin controls in the normal user flow. Browser checks also scope user reads and trade/account edits to the sample user. **These checks are UX demonstrations, not a security boundary.** A production API must enforce permissions independently.
-
-### Authentication and onboarding preview
-
-- `#/login`: credential form, password visibility, user/admin demo entry.
-- `#/register`: account creation form and workspace onboarding preview.
-- `#/forgot`: password-reset request confirmation; explicitly does not send email.
-- `#/onboarding`: workspace creation, license activation, MT5 connection, dashboard entry.
-
-Any syntactically valid demo email and password of at least eight characters can preview sign-in. Passwords are never persisted. Admin demo entry exists only to explore the design and must be removed when real authentication is introduced.
-
-## EA-only history contract
-
-- Users and administrators cannot add, edit, or delete broker execution records from the web interface.
-- Trade history, calendar, analytics, account results, and reports are derived from EA-synced executions only.
-- EA name and magic number are imported metadata, not editable strategy definitions. Performance can be compared by Expert Advisor.
-- Optional execution notes, reviewed flags, and daily monitoring reflections annotate results without altering execution data.
-- A license still represents one MT5 account. Multiple EAs on that account share the account license and are distinguished by imported EA identity/magic number.
-- Legacy synthetic sample rows are upgraded to the new EA fixture metadata while preserving local reviews. Previously user-created manual entries and playbooks are archived locally and excluded from every active view and calculation. Migration is idempotent; it does not discard those old local records.
-- Real ingestion must verify EA origin, owner/account scope, and idempotency on the server. This frontend remains a simulation until the MT5 bridge/backend phase is implemented.
-
-## Core ownership model
-
-**A user can own many licenses. Each license represents exactly one journal account. Each journal account can bind to one MT5 account + broker server.** Multiple chart EAs using the same MT5 account must share that account’s journal identity, rather than creating duplicate journal accounts.
-
-The UI represents `License + TradingAccount` as one combined `accounts` record to keep the prototype simple. The recommended production data model separates them while enforcing a one-to-one relationship:
-
-```mermaid
-erDiagram
-    USER ||--o{ LICENSE : owns
-    LICENSE ||--|| TRADING_ACCOUNT : represents
-    TRADING_ACCOUNT ||--o{ TRADE : contains
-    TRADING_ACCOUNT ||--o{ ACCOUNT_SNAPSHOT : records
-    TRADING_ACCOUNT ||--o{ SYNC_EVENT : emits
-    USER ||--o{ JOURNAL_ENTRY : writes
-    USER ||--o{ AUDIT_EVENT : performs
-```
-
-### Recommended production entities
-
-| Entity | Key fields and constraints |
-| --- | --- |
-| User | `id`, `email` unique, `display_name`, `role` (`admin` / `user`), `status`, timezone, created timestamp |
-| License | `id`, `user_id`, hashed key, masked key prefix, status, expiry, issued/revoked timestamps, last binding timestamp |
-| Trading account | `id`, `license_id` unique, `user_id`, nickname, broker, MT5 login, broker server, currency, type, initial balance; unique normalized `(server, login)` |
-| Trade | `id`, `account_id`, position/deal IDs, symbol, direction, timestamps, entry/exit, volume, gross profit, commissions, fees, swap, EA identifier/name, magic number, source, initial risk |
-| Account snapshot | `account_id`, timestamp, balance, equity, margin, open P&L, deposit/withdrawal adjustment; unique account/timestamp key |
-| Journal entry | `id`, `user_id`, optional `account_id`, trading date, title, content, mood, process rating |
-| Trade review | `trade_id`, reviewer owner, notes, reviewed flag, optional chart attachment references |
-| Sync event | `account_id`, idempotency key, cursor, heartbeat, event type, processing state, error code |
-| Audit event | Actor, action, target type/ID, timestamp, metadata; append-only on the server |
-
-Journals, profile settings, risk plans, and notification preferences are scoped to the selected owner in the demo as well as the production design. Admin platform screens aggregate users; admin user-panel screens select exactly one owner. Sample users Sarah and James have their own example EA monitoring reflections. New users begin with empty journals and zero performance until they have data. Existing local workspaces are migrated without discarding edits.
-
-## Frontend architecture
-
-```text
-market-structure-journal/
-├── index.html                 Document metadata, app roots, stylesheet/module entry
-├── src/
-│   ├── app.js                 Router, page compositions, forms, dialogs, actions, persistence
-│   ├── data.js                Deterministic seed data, filters, metrics, calendar helpers
-│   ├── ui.js                  Escaping, SVG icons/charts, badges, reusable UI renderers
-│   └── styles.css             Tokens, layout, components, themes, responsive states
-├── public/assets/mark.svg     Original vector brand mark and favicon
-├── scripts/
-│   ├── build.mjs              Clean and recreate dist/ from complete source
-│   └── serve.mjs              Small static local server
-├── tests/
-│   ├── data.test.mjs          Calculation, scope, reconciliation, calendar tests
-│   └── flows.test.mjs         Routing and real form/action handler contract tests
-├── dist/                      Built HTML, JS, CSS, and local assets
-├── .openai/hosting.json        Site identity and static deployment directory
-├── .gitignore
-├── package.json
-└── README.md
-```
-
-### Application state
-
-- Hash routing enables every view to work on ordinary static hosting without rewrite rules.
-- Global view state tracks administrator role separately from selected user-panel context, route, selected account, date preset, instrument, session, outcome, search, pagination, and tabs. `workspaceHref` preserves the selected owner across sidebar links, dashboard shortcuts, search navigation, and reports.
-- A versioned `structure-v1` localStorage document persists sample entities and user edits.
-- Transient navigation/filter state is intentionally not persisted. Reload defaults to all accounts and the current demo month.
-- `filterTrades` accepts only EA-sync records, scopes allowed account IDs, then applies account, period, instrument, session, result, and query filters. Search also matches the EA name and magic number. Removed trade-entry form/action handlers cannot create records through a stale UI action.
-- `metrics` and `groupTrades` derive every statistic from the current ledger. CSV exports use the same selected data as analytics.
-- User-provided text is HTML-escaped before rendering. CSV fields are quoted and risky formula prefixes are neutralized.
-- User and account changes produce local activity events. Production audit records must be generated by the server.
-
-### Sample dataset and calculation definitions
-
-- The demo date is **October 16, 2026**, with weekday sample trades from August 3 onward. Date presets are deliberately fixed so the design stays populated when viewed later.
-- Five sample users, six account licenses, three licenses for the primary user, and seeded histories for four connected/bound accounts.
-- Net result = gross trade P&L − fees. Win rate classifies trades after fees.
-- Profit factor = net winning total / absolute net losing total; no-loss profitable periods display infinity.
-- Equity in period views starts from the sample account's configured opening capital and adds the filtered ledger. It is an illustrative filtered-performance curve, not a broker-reconciled historical snapshot.
-- Maximum drawdown = the largest percentage decline from a running equity peak over the selected ledger.
-- Average R is the mean stored realized R value; production R must use the original captured stop-risk amount.
-- Calendar totals group the same fee-adjusted ledger by trading date, with current account/instrument/session/result scope. Calendar month navigation has its own date scope and intentionally overrides the top-level date preset.
-- “Consistency” on the dashboard uses win rate as an illustrative process visualization. It is not a validated proprietary scoring model.
-- Sample broker prices and performance are synthetic and do not claim to represent historical market quotes or real returns.
-
-## Connected UX flows
-
-### User: license → account → journal
-
-1. Open **Accounts & licenses** and activate `STRC-DEMO-2026` with an account nickname.
-2. The UI creates exactly one account record for that license.
-3. Enter the MT5 login, broker, and server. The prototype prevents duplicate account/server binding.
-4. Review connector setup instructions and the license/account mapping.
-5. Explicitly select **Simulate successful connection**.
-6. The account is marked connected locally. Existing sample trade histories remain intact; no fictitious broker trades are imported by this action.
-7. Review statistics, open a calendar day, inspect a trade, and save notes or a daily reflection.
-
-A license already bound to an MT5 login cannot be rebound from the standard connection form. Production needs an audited admin rebind workflow and token rotation.
-
-### Administrator: create → license → monitor
-
-1. Open **Users**, add a trader, and optionally issue a first license.
-2. Click any user row (or a trader in the platform leaderboard) to open their full workspace at `#/admin/users/:userId/overview`.
-3. Use the same pages as the user: dashboard, trade history/details, calendar/day views, analytics, journal, accounts/licenses, reports, settings, and help. All reads, edits, and exports use that selected user’s records.
-4. A persistent **Viewing [name]’s panel** banner identifies the context. Its selector switches users; **User details** opens lifetime stats and management actions; **Back to admin** returns to the user list. Changing users clears filters to avoid carrying another user’s account selection.
-5. Issue additional licenses with account type, opening balance, and expiry.
-6. Inspect account-level stats, status, heartbeat, and aggregate performance.
-7. Suspend a user to suspend their active licenses and disconnect their account states in this demo.
-8. Restoring the user restores the user status only; license statuses are separately reviewed and restored.
-9. Review the local activity log or export it.
-
-Invitation status is represented in the UI, but no invitation is delivered.
-
-## Recommended production architecture (not implemented)
-
-A practical next implementation uses a Node.js/TypeScript API, PostgreSQL, a background sync worker, and object storage for screenshots. The frontend can migrate to React/Next.js with an API repository adapter while retaining the screen design and ownership rules. These are future architecture choices, not dependencies hidden in this prototype.
+`src/importer.js` implements parsing and pure data operations. `src/imports-ui.js` owns the file-import screen and invokes those operations through an injected app interface. Existing rendering/calculation helpers serve both sample and imported data.
 
 ```mermaid
 flowchart TD
-    UI["Trader and admin web app"] --> API["Authenticated API"]
-    API --> DB["PostgreSQL: ownership and journal"]
-    API --> OBJ["Private screenshot storage"]
-    MT5["MT5 bridge EA"] --> INGEST["License-verified sync ingress"]
-    INGEST --> QUEUE["Idempotent event queue"]
-    QUEUE --> WORKER["Trade normalization worker"]
-    WORKER --> DB
-    API --> AUTH["Authentication and role service"]
+    FILE["MT5 history file"] --> PARSE["Inert table or worksheet parser"]
+    PARSE --> NORMALIZE["Dates, signed costs and closed executions"]
+    NORMALIZE --> REVIEW["Account scope, row preview and duplicate check"]
+    REVIEW --> SAVE["Atomic local journal save"]
+    SAVE --> VIEWS["Dashboard, trades, calendar and analytics"]
+    SAVE --> LOG["Import batch history and undo"]
 ```
 
-### MT5 synchronization contract
+- Files are read through a file chooser or drag/drop. HTML is parsed as text; scripts, styles and external assets are never executed or loaded.
+- Account number/currency metadata and normalized trade rows are extracted. Gross P&L, signed costs and swap credits retain their financial meaning.
+- Duplicate identity is `(journal account, broker record kind, ticket)`. Duplicate rows within the file and already imported rows are skipped. Re-importing a corrected ticket does not silently overwrite a reviewed execution; undo the prior batch and re-import if needed.
+- Importing overlapping position aggregates and deal records for the same position is blocked, preventing double counting across report views.
+- A new report cannot be attached to a different owner's account, a seeded sample account, a mismatched MT5 login, or a mismatched currency.
+- A new file-import account has `mode: import`, `connection: File import`, and no live license entitlement. File imports do not consume or pretend to verify a trading license. Existing real journal/license accounts can receive matching history reports.
+- The user may import all completed report rows, or restrict to rows with a reported non-zero magic number. Missing EA identity is labeled **Not provided by report**. Files without magic metadata cannot prove EA origin; it is never inferred from profit, symbol or comments.
+- Notes and reviewed flags annotate executions; entry/exit prices, size, P&L, costs, advisor identity and magic number are read-only.
+- A cloned database is committed to localStorage before the live state is replaced. Storage failures do not announce success or partially mutate the ledger.
+- Batch records retain owner, target account, filename, timestamp, counts, period, net result and warnings. Undo deletes only records with that batch ID; pre-existing and skipped duplicate trades remain.
+- Original files remain on the user's device. The application retains normalized history and provenance, not raw report HTML.
+- JSON backup exports include only the current user's accounts, trades, notes, settings and imports; the admin platform context can export all local users' data. There is no production security boundary in this static prototype.
 
-1. Admin issues a random high-entropy license; the server stores only a key hash and a masked display prefix.
-2. Activation checks ownership, status, expiry, and unique MT5 login/server binding.
-3. The bridge exchanges the license for a scoped, short-lived ingestion credential. Browser sessions and ingestion credentials are separate.
-4. MT5 sends a heartbeat, account snapshots, and deal batches over TLS via allowed WebRequest origins. The journal never needs the user's trading password.
-5. Ingress validates license/account identity, timestamp/nonce or signature, request size, and schema, then queues processing.
-6. The worker normalizes symbol suffixes, broker time offsets/DST, commissions, swaps, partial closes, hedging/netting positions, and deposits/withdrawals.
-7. Idempotency is enforced on `(account_id, broker_server, deal_ticket)` and batch keys; reconnecting must never duplicate trades.
-8. Import only positions whose opening execution is verified as originating from a registered EA. Store EA identity, magic number, and original broker execution metadata. Keep all subsequent closes, partial closes, SL/TP exits, and charges linked to that EA-origin position even when the closing deal is server-generated. Exclude discretionary/manual-origin positions from journal history and its performance calculations. There is no browser trade-creation endpoint.
-9. Closed positions derive realized EA P&L; account-wide broker equity comes from snapshots and must be labeled separately if unrelated positions affect the account. Journal reports and trade exports include only EA-origin positions.
-10. Server status derives from last heartbeat, not a client toggle. A configurable timeout marks the connection offline.
-11. Expiry/revocation blocks new sync, invalidates credentials, and retains historical journal data according to retention rules.
+## Financial and date calculations
 
-### Suggested API surface
+- Native MT5 row result = reported gross profit + signed commission + signed fee + signed swap. Internally `fees` stores the opposite signed sum, allowing credits as negative costs. App-exported `Fees` columns represent a direct cost amount.
+- Deposits, withdrawals and credits do not count as trades or trading P&L. They are not silently converted into profit.
+- Missing commission/fee/swap columns generate a warning: totals use the reported profit and cannot reconstruct unavailable charges.
+- Each completed position row is one trade; position-linked deal imports count each partial closing execution. The preview states which layout was detected.
+- Original risk is usually absent from reports. R remains `null`; averages use only known R values, and unavailable R displays as a dash. The importer does not infer original risk from a stop that may have been modified.
+- Without a known positive starting balance, the curve represents cumulative net P&L. Account return and percentage drawdown display as unavailable. With starting capital, the curve is starting capital plus the **selected** realized ledger; it is a closed-trade performance view, not live broker equity or a cash-flow-reconciled statement.
+- Calendar dates preserve broker-reported closing dates. Open/close timestamps remain in broker clock time. Holding time uses their difference.
+- Session labels remain **Unclassified** until the user supplies a broker UTC offset. The simplified UTC buckets are Asia 00:00–07:00, London 07:00–12:00, New York 12:00–21:00, otherwise Unclassified. These are fixed journal buckets, not DST-aware exchange-session calendars.
+- Date presets are calculated from the current user timezone for personal data; sample mode anchors at October 16, 2026. New imports select All time and move the calendar to the newest imported close date. Reload restores the primary user's latest import account and All time.
+- Profit factor, expectancy, net wins/losses, daily totals and exports derive from the same filtered ledger. “Consistency” remains an illustrative win-rate visualization, not a proprietary process score.
 
-| Endpoint | Authorization | Purpose |
-| --- | --- | --- |
-| `POST /auth/login`, `/auth/logout`, `/auth/password-reset` | Auth service | Secure session lifecycle |
-| `GET /me`, `PATCH /me` | Signed-in owner | Profile and preferences |
-| `GET /accounts` | Owner or administrator | Scoped account list |
-| `POST /licenses/activate` | Owner | Validate and bind a license |
-| `POST /accounts/:id/connect`, `/disconnect` | Owner or administrator | Manage bridge binding/session |
-| `GET /trades` | Scoped account owner | Read-only EA execution ledger; creation is restricted to verified connector ingestion |
-| `PATCH /trades/:id/review` | Scoped account owner | Execution notes and reviewed flag only; broker/EA fields remain immutable |
-| `GET /analytics`, `/calendar`, `/reports` | Scoped owner or administrator | Server-calculated filtered performance |
-| `GET/POST/PATCH/DELETE /journal` | Owner | Daily EA monitoring reflections |
-| `POST /sync/handshake`, `/sync/heartbeat`, `/sync/deals` | Account-scoped connector token | MT5 ingestion |
-| `GET/POST/PATCH /admin/users` | Administrator | User management and invitations |
-| `GET/POST/PATCH /admin/licenses` | Administrator | Issue, suspend, renew, revoke, rebind |
-| `GET /admin/stats`, `/admin/connections`, `/admin/audit` | Administrator | Platform observability |
+## Pages and roles
 
-### Production permission rules
+| Route | Purpose |
+| --- | --- |
+| `#/user/overview` | Net performance, win rate, profit factor, balance/P&L curve, daily and session results, recent trades |
+| `#/user/trades` | Account/date/instrument/session/result filters, search, pagination, execution detail, notes, CSV export, import entry |
+| `#/user/calendar` | Month navigation, daily P&L, day trades and daily notes |
+| `#/user/analytics` | Overview, sessions, instruments, advisors, weekdays and risk review |
+| `#/user/imports` | Real file import, preview, account choice, validation, history, undo, JSON backup |
+| `#/user/journal` | Daily monitoring reflections, date, mood, rating, create/edit/delete |
+| `#/user/accounts` | Local import accounts and license/MT5 preview accounts; matching history import and account management |
+| `#/user/reports` | Selected-period report, trade ledger, metrics and daily CSV exports |
+| `#/user/settings` | Profile/timezone, preferences, risk plan, appearance, notifications and security previews |
+| `#/user/help` | FAQs, export/import help and connection guidance |
+| `#/admin/overview` | Aggregate stats, trader results, license and connection summaries |
+| `#/admin/users` | Search/add users; click a row to enter the full user workspace |
+| `#/admin/users/:userId/:page` | Same user pages, restricted to the selected owner's records, with user switcher and Back to admin |
+| `#/admin/imports` | Import for a selected local user, inspect platform import history and export local platform backup |
+| `#/admin/accounts`, `#/admin/licenses` | Account ownership, issuing/editing preview licenses and expiry/status |
+| `#/admin/calendar`, `#/admin/analytics` | Platform scoped calendar and performance |
+| `#/admin/connections`, `#/admin/activity` | Preview sync health and local activity events |
+| `#/admin/settings`, `#/admin/help` | Settings and resources |
 
-| Action | User | Administrator |
-| --- | --- | --- |
-| Read personal trades, stats, accounts | Own records | All records |
-| Annotate synced EA executions | Own records; notes/reviewed flag only | Selected user’s notes through the admin user panel; audit server-side |
-| Create or change broker execution records from the browser | No | No; verified ingestion only |
-| Read and manage journals / settings | Own records | Selected user’s records through the admin user panel; audit server-side |
-| Activate license | Assigned licenses only | Issue and assign licenses |
-| Change license expiry/status | No | Yes |
-| Create/suspend users | No | Yes |
-| Read cross-user analytics and audit | No | Yes |
-| Ingest MT5 deals | Account-scoped connector only | No browser-level ingestion bypass |
+Login, registration, password reset and onboarding routes remain prototype flows (`#/login`, `#/register`, `#/forgot`, `#/onboarding`). Never enter real credentials. User/admin role switching is a design demo, not authentication. Admin access must be enforced server-side before this becomes a multiuser production service.
 
-Admin drill-through must preserve the administrator identity and selected target separately, with actor and target owner in every audit record. The demo hash route is not proof of authorization; require an authenticated administrator session before reading any selected-user data. Enforce ownership in every database query/API operation. Do not accept a client-supplied role or owner ID as proof of access. Production also requires session revocation, secure HttpOnly cookies, CSRF protection for mutations, rate limits, invitation verification, account suspension checks, signed storage URLs, secret management, migrations, backups, monitoring, and server-side audit logging.
+## Ownership and future production architecture
 
-## Validation and remaining scope
+**A user owns multiple accounts. A live connection uses one license per MT5 login/server; one account can run multiple EAs distinguished by imported magic/EA identity. File-import accounts support offline history without a live entitlement.**
 
-- Thirty-one automated tests cover calculations, fee reconciliation, account scoping, calendars, routing, review notes, journals, admin user/license creation, connection flow, suspension, risk preferences, full admin drill-through, owner-specific data/settings, empty/invalid users, and return navigation. EA-only regressions verify removed manual-entry handlers and playbook routes, immutable broker/EA fields during note edits, EA analytics, source filtering, advisor/magic-number search, and safe migration of existing demo data.
-- JavaScript syntax checks and a clean static build run before release.
-- The interaction tests use a lightweight DOM contract harness, not a real browser. Browser layout, responsive screenshots, and full assistive-technology checks were not available in this build environment; complete those before production release.
-- Backend auth/authorization, real MT5 EA, license service, email, screenshot uploads, open-trade monitoring, deposits/withdrawals reconciliation, billing, cloud persistence, and production security are future work.
-- Demo license strings are illustrative public sample values. There are no production secrets in the source.
+Current local entities:
 
-## Deployment
+| Entity | Important fields |
+| --- | --- |
+| User | ID, display name, email, status, role context |
+| Account | Owner ID, login/server, nickname, USD currency, opening balance/known flag, source mode, demo flag, license/connection preview state |
+| Trade | Account, broker key/ticket/position ID, position/deal layout, open/close timestamps/prices, volume, gross P&L, signed total costs, EA/magic, optional R, import batch, review notes |
+| Import batch | Owner/account, filename, creation time, imported/duplicate/skipped/excluded counts, period, net result, warnings |
+| Journal entry | Owner, date, title, reflection, mood, process rating, demo flag |
+| Settings | Owner profile/timezone, risk reminders, notification preferences, appearance |
+| Activity | Actor/owner context, event description, timestamp, type |
 
-`npm run build` writes a standalone static site to `dist/`. Publish that directory on a static host. Root-relative asset paths assume deployment at the domain root. Hash routes require no server rewrite configuration.
+For production, use an authenticated TypeScript API, PostgreSQL, account/license records, append-only audit events, an ingestion queue/worker, account snapshots and optional object storage. File imports should use the same normalization/deduplication service as the MT5 connector, with upload limits and atomic database transactions. API queries must derive owner/role from the authenticated session, not a route or browser-supplied ID. Server audit records must retain both admin actor and target owner.
 
-The included Sites manifest points to `dist/` and preserves the private Site identity. GitHub stores the complete source, tests, documentation, brand asset, scripts, and generated site.
+Suggested production operations: session login/logout/reset; owner profile/preferences; scoped accounts/trades/analytics/calendar/reports; execution review notes; import upload/preview/commit/undo; daily journals; admin user/license management; account-scoped connector handshake/heartbeat/deal ingestion. The import account type is separate from a verified live connection. A new history file must never grant trading access.
+
+Automatic MT5 sync still needs a read-only bridge EA, license activation and binding, scoped short-lived ingestion tokens, TLS, timestamp/replay checks, position/deal normalization, idempotency, snapshots, heartbeat/offline status, revocation, and server enforcement. No broker trading password is required by this journal design. The existing connection wizard explicitly simulates its handshake.
+
+## Source layout
+
+```text
+src/app.js                Routing, user/admin pages, shared actions, journal state
+src/data.js               Samples, schema migration, filters, metrics, calendars
+src/ui.js                 Safe renderers, SVG icons, curves and chart primitives
+src/importer.js           HTML/XML/XLSX/CSV readers, normalization, plan/commit/undo
+src/imports-ui.js          File workflow, preview, scoped account selection, backups
+src/styles.css            Existing gold/light identity, dark theme, responsive layouts
+public/assets/            Original mark and downloadable example CSV
+scripts/build.mjs         Copies complete source/assets to dist
+scripts/serve.mjs         Small local static server
+tests/                    Calculation, role flow, parser and import workflow tests
+.openai/hosting.json       Existing Site ID and static directory
+README.md                 Product behavior, architecture and supported boundaries
+```
+
+No dependencies or CDN parser are used. XLSX decompression uses `DecompressionStream('deflate-raw')`; browsers without that support receive guidance to export HTML instead. Optional Google Fonts have system-font fallbacks.
+
+## Verification
+
+- 53 automated tests cover financial reconciliation, calendar/filter scope, all role routes, user drill-through, editing isolation, HTML/XML/CSV/native-XLSX parsing, UTF-16, costs/swap credits, duplicate/batch handling, exact-position partial closes, unsupported/malformed files, mismatched accounts/currencies, source filtering, atomic quota failure and reload persistence.
+- Browser QA exercised choosing a report, file preview, new account creation, a successful three-trade import, ledger totals, calendar day totals, persistence after reload and a repeated-file preview showing zero new trades / three duplicates.
+- Responsive layouts and keyboard controls are implemented. Dedicated mobile-device and assistive-technology certification are not claimed.
+- The remaining backend/auth/live-bridge scope is described above. This release completes the **file-based local journal workflow**, not a hosted multiuser financial-data backend.
+
+## Deployment and source preservation
+
+`npm run build` creates standalone `dist/` for domain-root static hosting. Hash routes need no server rewrites. The Sites manifest retains the existing project ID. Publish through the Sites workflow without changing the current audience. GitHub contains complete source, generated site, tests, fixtures, scripts, assets and this README.
+
+### Import verification screenshot
+
+Synthetic report data shown after import and reload:
+
+![MT5 file import verified in the journal](docs/mt5-import-proof.jpg)

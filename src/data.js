@@ -35,22 +35,23 @@ for(let d=new Date('2026-08-03T12:00:00Z');d<=new Date(DEMO_TODAY+'T12:00:00Z');
 }
 export const seedEntries=[{id:'j1',date:'2026-10-16',title:'Patience is the edge.',mood:'Focused',rating:4,content:'Reviewed the EA’s London-session executions. The account stayed within its configured risk budget.\n\nNext review: compare holding time, fees, and drawdown across the connected EAs.'},{id:'j2',date:'2026-10-15',title:'One good decision at a time.',mood:'Calm',rating:5,content:'Reviewed daily loss and trade count against the EA configuration. Gold and GBPUSD execution histories synced successfully.'},{id:'j3',date:'2026-10-14',title:'A lesson in overtrading.',mood:'Impatient',rating:2,content:'The EA recorded two losing executions. Reviewed the sequence and drawdown without changing the source trade data.'}];
 export function metrics(trades,starting=25000){
+ const rValues=trades.filter(t=>Number.isFinite(t.r)).map(t=>t.r);
  const pnl=trades.reduce((s,t)=>s+t.pnl-t.fees,0),wins=trades.filter(t=>t.pnl-t.fees>0),losses=trades.filter(t=>t.pnl-t.fees<=0),grossWin=wins.reduce((s,t)=>s+t.pnl-t.fees,0),grossLoss=Math.abs(losses.reduce((s,t)=>s+t.pnl-t.fees,0));
  let equity=starting,peak=starting,dd=0;const curve=[{date:'Start',value:starting}];
  for(const t of [...trades].sort((a,b)=>(a.date+a.time).localeCompare(b.date+b.time))){equity+=t.pnl-t.fees;peak=Math.max(peak,equity);dd=Math.max(dd,peak?((peak-equity)/peak)*100:0);curve.push({date:t.date,value:equity});}
- return {pnl,wins:wins.length,losses:losses.length,total:trades.length,winRate:trades.length?wins.length/trades.length*100:0,pf:grossLoss?grossWin/grossLoss:grossWin?Infinity:0,avgR:trades.length?trades.reduce((s,t)=>s+t.r,0)/trades.length:0,balance:starting+pnl,dd,curve,fees:trades.reduce((s,t)=>s+t.fees,0),avgWin:wins.length?grossWin/wins.length:0,avgLoss:losses.length?grossLoss/losses.length:0};
+ return {pnl,wins:wins.length,losses:losses.length,total:trades.length,winRate:trades.length?wins.length/trades.length*100:0,pf:grossLoss?grossWin/grossLoss:grossWin?Infinity:0,avgR:rValues.length?rValues.reduce((s,r)=>s+r,0)/rValues.length:0,rKnown:rValues.length>0,rCount:rValues.length,ddKnown:starting>0,balance:starting+pnl,dd,curve,fees:trades.reduce((s,t)=>s+t.fees,0),avgWin:wins.length?grossWin/wins.length:0,avgLoss:losses.length?grossLoss/losses.length:0};
 }
 export function groupTrades(trades,key){const g={};for(const t of trades){const k=typeof key==='function'?key(t):t[key];(g[k]??=[]).push(t);}return Object.entries(g).map(([name,rows])=>({name,...metrics(rows),trades:rows}));}
-export function filterTrades(trades,{account='all',accountIds,range='month',symbol='all',session='all',outcome='all',query=''}={}){
- const start=range==='month'?'2026-10-01':range==='week'?'2026-10-12':range==='quarter'?'2026-08-01':'0000-01-01';
- return trades.filter(t=>t.source==='EA sync'&&(!accountIds||accountIds.includes(t.accountId))&&(account==='all'||t.accountId===account)&&t.date>=start&&(symbol==='all'||t.symbol===symbol)&&(session==='all'||t.session===session)&&(outcome==='all'||(outcome==='win'?t.pnl-t.fees>0:t.pnl-t.fees<=0))&&(!query||`${t.symbol} ${t.eaName||''} ${t.magic||''} ${t.ticket} ${t.date}`.toLowerCase().includes(query.toLowerCase())));
+export function filterTrades(trades,{account='all',accountIds,range='month',anchorDate=DEMO_TODAY,symbol='all',session='all',outcome='all',query=''}={}){
+ const anchor=new Date(anchorDate+'T12:00:00Z');let from=new Date(anchor);if(range==='month')from.setUTCDate(1);else if(range==='week')from.setUTCDate(from.getUTCDate()-(from.getUTCDay()+6)%7);else if(range==='quarter'){from.setUTCDate(1);from.setUTCMonth(from.getUTCMonth()-2);}const start=range==='all'?'0000-01-01':from.toISOString().slice(0,10);
+ return trades.filter(t=>['EA sync','MT5 import'].includes(t.source)&&(!accountIds||accountIds.includes(t.accountId))&&(account==='all'||t.accountId===account)&&t.date>=start&&(symbol==='all'||t.symbol===symbol)&&(session==='all'||t.session===session)&&(outcome==='all'||(outcome==='win'?t.pnl-t.fees>0:t.pnl-t.fees<=0))&&(!query||`${t.symbol} ${t.eaName||''} ${t.magic||''} ${t.ticket} ${t.date}`.toLowerCase().includes(query.toLowerCase())));
 }
 export function calendarCells(year,month){const first=new Date(year,month,1),offset=(first.getDay()+6)%7,days=new Date(year,month+1,0).getDate();return Array.from({length:Math.ceil((offset+days)/7)*7},(_,i)=>{const date=new Date(year,month,i-offset+1);return {day:date.getDate(),date:`${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`,current:date.getMonth()===month};});}
 export function loadState(){try{const s=JSON.parse(localStorage.getItem('structure-v1'));if(s?.version===1)return migrateUserWorkspaces(s);}catch{}return migrateUserWorkspaces({version:1,users:structuredClone(seedUsers),accounts:structuredClone(seedAccounts),trades:structuredClone(seedTrades),entries:structuredClone(seedEntries),profile:{name:'Anas Ayub',email:'anas@example.com',timezone:'Asia/Karachi',currency:'USD'},risk:{perTrade:1,dailyLoss:3,maxTrades:3},preferences:{email:true,sync:true,weekly:true},activity:[{id:'ev1',text:'Trade history synced · Main trading account',time:'Oct 16, 15:42',type:'sync'},{id:'ev2',text:'New license issued · Strategy lab',time:'Oct 01, 12:00',type:'license'}],theme:'light'});}
 
 // Upgrade existing browser demos without discarding their trades or local edits.
 export function migrateUserWorkspaces(db){
- for(const entry of db.entries)entry.userId??='u1';
+ for(const entry of db.entries){entry.userId??='u1';entry.demo??=['j1','j2','j3','journal-u2','journal-u3'].includes(entry.id);}
  db.userSettings??={};
  if(!db.userWorkspaceVersion){
   for(const user of db.users.filter(u=>['u2','u3'].includes(u.id))){
@@ -58,6 +59,9 @@ export function migrateUserWorkspaces(db){
   }
   db.userWorkspaceVersion=1;
  }
+ db.importBatches??=[];db.dataMode??='demo';
+ for(const account of db.accounts||[])account.demo??=seedAccounts.some(a=>a.id===account.id);
+ for(const trade of db.trades||[])trade.demo??=seedTrades.some(t=>t.id===trade.id&&t.ticket===trade.ticket);
  return migrateEAOnly(db);
 }
 
@@ -68,7 +72,7 @@ export function migrateEAOnly(db){
   for(const trade of db.trades||[]){
    const original=sample.get(trade.id);
    if(original&&original.ticket===trade.ticket){trade.source='EA sync';trade.eaName=original.eaName;trade.magic=original.magic;}
-   if(trade.source==='EA sync'){trade.eaName??='Connected EA';trade.magic??=null;delete trade.setup;imported.push(trade);}
+   if(['EA sync','MT5 import'].includes(trade.source)){trade.eaName??='Connected EA';trade.magic??=null;delete trade.setup;imported.push(trade);}
    else archived.push(trade);
   }
   db.trades=imported;db.archivedManualTrades=[...(db.archivedManualTrades||[]),...archived];
