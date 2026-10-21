@@ -1,6 +1,6 @@
 # Structure — Cloud Trading Journal
 
-Structure journals **EA execution history**, with real server persistence, verified user/admin access, MT5 report imports, account analytics, and a trading calendar. It contains no playbook and no individual trade-entry form.
+Structure journals **EA execution history**, with real server persistence, verified user/admin access, MT5 report imports, account analytics, and a trading calendar. It supports manual closed-trade entry alongside EA history and MT5 report imports. It contains no playbook.
 
 - Website: https://market-structure-journal.m-anasayub80.chatgpt.site
 - Repository: https://github.com/anasayub80/market-structure-journal
@@ -12,7 +12,7 @@ Structure journals **EA execution history**, with real server persistence, verif
 1. Open the website. The configured administrator can sign in with email and password; other traders can choose **Continue with ChatGPT**. Passwords are checked against a salted server-only hash and are never stored in plaintext.
 2. Server-only configuration provisions the owner administrator and optional goal account idempotently. All other new identities receive the user role. Changing a URL cannot grant administrator access.
 3. Administrators can add traders by their exact sign-in email, issue account licenses, suspend/restore access, and click a trader to open their complete panel.
-4. In **Import history**, upload an MT5 export, review the preview, select/create its account, and confirm. The server parses the original file again and saves the executions.
+4. Use **Add trade** or **Manual trades** to record a closed trade, or upload an MT5 export in **Import history**, review it, select/create its account, and confirm. The server parses the original file again and saves the executions.
 5. For customer-owned KV storage, open **Admin → Platform settings → Cloudflare** and complete the connection described below.
 
 No sample users or executions are shipped or seeded into production. Optional server-only configuration provisions the real owner and one empty account. Synthetic datasets live exclusively under `tests/fixtures/`, outside the built website. The local development database is separate; an ignored `.local/preview-env.json` can supply a private owner configuration for QA.
@@ -62,6 +62,8 @@ flowchart TD
 | --- | --- | --- |
 | Application | `src/app.js` | Routing, user/admin panels, tables, reviews, calendar, analytics, forms |
 | API client | `src/cloud.js` | Same-origin authenticated requests; server-confirmed state updates |
+| Manual trade UI | `src/manual-ui.js` | Closed-trade form, live P&L/R preview, active/archive management |
+| Manual trade service | `server/manual-trades.js` | Validation, owner checks, idempotent create, revision-safe edit, archive/restore |
 | Report UI | `src/imports-ui.js` | Local preview, target account, upload confirmation, batch history/undo |
 | Report parser | `src/importer.js` | HTML/XML/XLSX/CSV parsing, timestamps, signed costs, duplicate planning |
 | Analytics | `src/data.js`, `src/ui.js` | Metrics, scoped filters, calendars, escaped reusable UI, SVG charts |
@@ -87,7 +89,7 @@ flowchart TD
 | MT5 binding | A non-empty login/server pair can belong to only one account platform-wide |
 | Connector credential | Separate from license; 256 random bits; only SHA-256 digest stored; shown once; revocable |
 | Import batch | Account/owner; pending, committed, or undone; filename/totals/period/warnings |
-| Trade | Account, owner, batch, broker key, immutable execution values, mutable review annotations |
+| Trade | Account, owner, batch, broker key, immutable execution values, mutable review annotations; manual executions additionally support revision-safe edits |
 | Reflection | User-owned daily review; independent of broker execution data |
 | Audit event | Actor, target owner, server timestamp, event type |
 | KV outbox | Pending/synced replication records; failures do not discard the accepted journal write |
@@ -138,7 +140,7 @@ Export from desktop MT5: **Toolbox → History → All History/custom period →
 - Missing original risk leaves R metrics unavailable. Unknown opening capital leaves percentage return/drawdown unavailable.
 - Non-zero magic filtering is optional for file reports because some MT5 exports omit the Magic column. Advisor identity is not invented.
 - Deal-only reports require sufficient position-linked opening records. Unsupported reversals or incomplete pairing produce errors. Do not mix overlapping position and deal layouts in one account.
-- Prices, volume, times, and broker P&L are immutable after import. Notes/review flags are editable.
+- Prices, volume, times, and broker P&L are immutable after MT5 import or EA sync. Manual records are editable in their dedicated module. Notes/review flags are editable.
 
 Imports saved by older versions only in a browser are **not automatically uploaded**. The old `structure-v1` key is not erased. Reimport the original MT5 reports into the cloud workspace; do not assume earlier device-local history has migrated.
 
@@ -226,4 +228,24 @@ For accounts with a goal:
 - A+ quality is an explicit review annotation, never inferred from profit or fabricated by the journal.
 - The milestone table exposes percentages and labels planned risks that exceed capital. The system tracks the requested rule without placing orders or enforcing it at the broker.
 
-`src/goals.js` renders the account plan on the owner's overview, the admin overview, and Accounts. Execution review permits a setup grade while broker execution values remain immutable.
+`src/goals.js` renders the account plan on the owner's overview, the admin overview, and Accounts. Execution review permits a setup grade while broker execution values remain immutable. Manual execution values can be edited through the manual module.
+
+
+## Manual trade entry
+
+Open **Manual trades** from either workspace, or **Add trade** from Overview or Trade history. The selected active account can receive a manual entry even before an MT5 connector is bound. Administrators can select any permitted user's account; ordinary users can select only their own accounts.
+
+The form records a completed execution: symbol, direction, lots, opened/closed reporting times, entry/exit prices, gross USD profit/loss, signed costs/swaps, optional initial risk, optional stop loss/take profit, setup grade, session, and review notes. Closing time cannot precede opening time. Required numeric values are finite and bounded; execution prices and volume must be positive.
+
+- Net P&L is `gross P&L - costs`; positive costs reduce profit and negative costs represent a credit.
+- Realized R is net P&L divided by the entered initial risk; omitted risk produces unavailable R, never an invented value.
+- Goal accounts prefill planned risk from the current compounding stage. The user must enter actual execution prices, dates, and P&L.
+- Setup quality defaults to ungraded. A+ status is never inferred from a winning result.
+- The optional **broker position ticket** prevents duplicate active records within the account. Import planning skips matching manual tickets when future MT5 reports contain the same position. Without an actual broker ticket, automatic cross-source reconciliation is not possible.
+- Manual entries carry the explicit source `Manual entry`; manual references cannot impersonate EA or imported history.
+
+Server actions are `manual.save`, `manual.archive`, and `manual.restore` through `POST /api/action`. Creates use a stable form request ID, so network retries do not insert duplicates. Edits require a matching revision and cannot move an execution between accounts. Ownership is checked independently for all actions. The same endpoints reject attempts to modify EA/import execution data.
+
+Manual entries use the existing trade/batch schema. Each entry has a private source-marked committed batch, kept out of the file-import history UI. Archiving changes its batch state, retaining the record for restoration while removing it from performance, calendar, account balances, and compounding progress. Archived entries are returned only to their owner or an administrator in `deletedManualTrades`. Restore returns the same trade ID and rechecks account status and active ticket conflicts. Archive management respects the workspace/account/date filters; select All time to find older entries.
+
+Manual trades feed all existing filters, reports/CSV exports (including source), calendar totals, equity/drawdown metrics, weekly counts, and goal progress. JSON backups include archived manual entries. Audit events and KV replication are queued for manual mutations. No schema migration or reset of existing users/accounts/trades is needed for this module.

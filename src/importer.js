@@ -122,7 +122,7 @@ export async function parseMT5File(file,options={}){
 const keyFor=t=>t.brokerKey||`position:${t.positionId||t.ticket}`;
 export function planImport(report,db,accountId,{onlyEA=false}={}){
  const existing=db.trades.filter(t=>t.accountId===accountId),keys=new Set(existing.map(keyFor)),seen=new Set(),fresh=[],duplicates=[],conflicts=[],excluded=[];
- for(const t of report.trades){if(onlyEA&&(!t.magic||t.magic==='0')){excluded.push(t);continue;}const k=keyFor(t);if(keys.has(k)||seen.has(k)){duplicates.push(t);continue;}const overlap=existing.find(e=>String(e.positionId||e.ticket)===t.positionId&&e.importKind&&e.importKind!==t.importKind);if(overlap){conflicts.push(t);continue;}seen.add(k);fresh.push(t);}
+ for(const t of report.trades){if(onlyEA&&(!t.magic||t.magic==='0')){excluded.push(t);continue;}const k=keyFor(t);if(keys.has(k)||seen.has(k)||existing.some(e=>e.source==='Manual entry'&&e.brokerTicket&&String(e.brokerTicket)===String(t.ticket))){duplicates.push(t);continue;}const overlap=existing.find(e=>String(e.positionId||e.ticket)===t.positionId&&e.importKind&&e.importKind!==t.importKind);if(overlap){conflicts.push(t);continue;}seen.add(k);fresh.push(t);}
  return {fresh,duplicates,conflicts,excluded,net:fresh.reduce((s,t)=>s+t.pnl-t.fees,0)};
 }
 export function commitReport(db,report,{userId,accountId='new',name,number='',server='',currency='USD',balance=0,onlyEA=false,utcOffset=null},makeId=()=>globalThis.crypto?.randomUUID?.()||`local-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`){

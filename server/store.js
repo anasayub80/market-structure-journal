@@ -26,12 +26,13 @@ export function accountData(a){const data=JSON.parse(a.data);if(data.connection=
 export const auditStatement=(env,u,ownerId,message,type='update')=>statement(env,'INSERT INTO activity(id,owner_id,actor_id,time,type,text) VALUES(?,?,?,?,?,?)',id(),ownerId,u.id,now(),type,message);
 export async function hydrate(env,u,ownerId){
  const all=u.role==='admin'&&!ownerId;const target=all?null:ownerId||u.id;if(target)authorize(u,target);
- const [users,accounts,trades,entries,batches,activity]=await Promise.all([
+ const [users,accounts,trades,entries,batches,activity,archived]=await Promise.all([
  rows(env,all?'SELECT * FROM users ORDER BY created':'SELECT * FROM users WHERE id = ?',...(all?[]:[target])),
  rows(env,all?'SELECT * FROM accounts':'SELECT * FROM accounts WHERE owner_id = ?',...(all?[]:[target])),
  rows(env,'SELECT t.data FROM trades t JOIN batches b ON b.id=t.batch_id WHERE b.state=\'committed\''+(all?'':' AND t.owner_id = ?'),...(all?[]:[target])),
  rows(env,all?'SELECT data FROM entries':'SELECT data FROM entries WHERE owner_id = ?',...(all?[]:[target])),
- rows(env,"SELECT data FROM batches WHERE state='committed'"+(all?'':' AND owner_id = ?')+' ORDER BY created DESC',...(all?[]:[target])),
- rows(env,'SELECT id,owner_id as userId,time,type,text FROM activity'+(all?'':' WHERE owner_id = ?')+' ORDER BY time DESC LIMIT 200',...(all?[]:[target]))]);
- const own=users.find(v=>v.id===u.id)||u;const config=settings(own);return {version:2,dataMode:'real',theme:'light',...config,userSettings:Object.fromEntries(users.map(v=>[v.id,settings(v)])),users:users.map(publicUser),accounts:accounts.map(accountData),trades:trades.map(v=>JSON.parse(v.data)),entries:entries.map(v=>JSON.parse(v.data)),importBatches:batches.map(v=>JSON.parse(v.data)),activity};
+ rows(env,"SELECT data FROM batches WHERE state='committed' AND coalesce(json_extract(data,'$.source'),'')<>'Manual entry'"+(all?'':' AND owner_id = ?')+' ORDER BY created DESC',...(all?[]:[target])),
+ rows(env,'SELECT id,owner_id as userId,time,type,text FROM activity'+(all?'':' WHERE owner_id = ?')+' ORDER BY time DESC LIMIT 200',...(all?[]:[target])),
+ rows(env,"SELECT t.data FROM trades t JOIN batches b ON b.id=t.batch_id WHERE b.state='undone' AND json_extract(t.data,'$.source')='Manual entry'"+(all?'':' AND t.owner_id=?'),...(all?[]:[target]))]);
+ const own=users.find(v=>v.id===u.id)||u;const config=settings(own);return {version:2,dataMode:'real',theme:'light',...config,userSettings:Object.fromEntries(users.map(v=>[v.id,settings(v)])),users:users.map(publicUser),accounts:accounts.map(accountData),trades:trades.map(v=>JSON.parse(v.data)),entries:entries.map(v=>JSON.parse(v.data)),deletedManualTrades:archived.map(v=>JSON.parse(v.data)),importBatches:batches.map(v=>JSON.parse(v.data)),activity};
 }
