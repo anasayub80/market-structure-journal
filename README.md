@@ -9,13 +9,13 @@ Structure journals **EA execution history**, with real server persistence, verif
 
 ## Start using it
 
-1. Open the website and choose **Continue with ChatGPT**. The Site's authentication service verifies identity; Structure never collects passwords.
-2. The configured owner email receives the administrator role on first verified sign-in. All other new identities receive the user role. Changing a URL cannot grant administrator access.
+1. Open the website. The configured administrator can sign in with email and password; other traders can choose **Continue with ChatGPT**. Passwords are checked against a salted server-only hash and are never stored in plaintext.
+2. Server-only configuration provisions the owner administrator and optional goal account idempotently. All other new identities receive the user role. Changing a URL cannot grant administrator access.
 3. Administrators can add traders by their exact sign-in email, issue account licenses, suspend/restore access, and click a trader to open their complete panel.
 4. In **Import history**, upload an MT5 export, review the preview, select/create its account, and confirm. The server parses the original file again and saves the executions.
 5. For customer-owned KV storage, open **Admin → Platform settings → Cloudflare** and complete the connection described below.
 
-No sample users, trades, passwords, connector credentials, or Cloudflare tokens are seeded into production. The local development server uses an isolated synthetic owner.
+No sample users or executions are shipped or seeded into production. Optional server-only configuration provisions the real owner and one empty account. Synthetic datasets live exclusively under `tests/fixtures/`, outside the built website. The local development database is separate; an ignored `.local/preview-env.json` can supply a private owner configuration for QA.
 
 ## Cloudflare account connection
 
@@ -67,11 +67,14 @@ flowchart TD
 | Analytics | `src/data.js`, `src/ui.js` | Metrics, scoped filters, calendars, escaped reusable UI, SVG charts |
 | Worker | `server/index.js` | Static asset delivery, API routing, CSP/security headers |
 | Identity/store | `server/store.js` | Verified identities, server roles, owner checks, D1 hydration |
+| Password sessions | `server/password-auth.js` | Owner password validation, rate limits, hashed revocable sessions |
+| Owner setup | `server/provision.js` | Idempotent runtime-configured administrator and empty goal account |
+| Goal tracking | `src/goals.js` | Closed-balance progress, weekly count, A+ annotations, risk milestones |
 | API actions | `server/api.js` | Validated mutations, admin operations, credential lifecycle, EA ingestion |
 | Import service | `server/imports.js` | Server-side parsing, per-account staging, atomic publication, undo |
 | KV adapter | `server/cloudflare.js` | Encrypted account connection, immutable snapshots, replication/retry |
 | Security helpers | `server/security.js` | Input validation, origin checks, bounded request bodies, encryption/hashing |
-| Schema | `drizzle/0000_journal_backend.sql` | Immutable initial schema and indexes |
+| Schema | `drizzle/*.sql` | Immutable schema and appended session migration |
 | Bridge source | `public/assets/StructureBridge.mq5` | Read-only MT5 position-history sender |
 
 ### Record model
@@ -89,13 +92,16 @@ flowchart TD
 | Audit event | Actor, target owner, server timestamp, event type |
 | KV outbox | Pending/synced replication records; failures do not discard the accepted journal write |
 
-Production data starts empty. `src/data.js` retains fixture/migration helpers for parser and analytics regression tests; the live application does not call its demo loader or trust its local roles.
+Production contains only real configured or user-created records. `src/data.js` contains formatting and analytics helpers; all legacy sample generators/migration fixtures were moved into `tests/fixtures/legacy-data.mjs`. They are never included in the build. Opening capital defaults to zero unless supplied by the account. Empty curves preserve the account's actual opening balance.
 
 ### Authentication and authorization
 
-Sites dispatch owns `/signin-with-chatgpt`, `/signout-with-chatgpt`, and `/callback`. Authentication uses top-level navigation with `return_to`. Its trusted identity headers are consumed by the Worker; browser-supplied role fields are ignored.
+Sites dispatch owns `/signin-with-chatgpt`, `/signout-with-chatgpt`, and `/callback`. Authentication uses top-level navigation with `return_to`. Its trusted identity headers are consumed by the Worker; browser-supplied role fields are ignored. Owner password sign-in is an additional explicitly requested authentication path and preserves the existing ChatGPT integration.
 
-- Anonymous API requests receive 401.
+- Anonymous workspace requests receive 401.
+- The owner password hash is a salted PBKDF2-SHA256 digest configured as `ADMIN_PASSWORD_HASH`, not a source-code constant. Login is limited by both client IP and account email.
+- Password sessions last 12 hours, use random 256-bit tokens, and set `__Host-structure_session` with Secure, HttpOnly, SameSite=Strict, and Path=/. Only token digests are stored in D1. Logout, expiry, suspension, and credential rotation revoke access.
+- `/api/session` and login may idempotently provision the configured owner/account from private runtime settings. Anonymous callers cannot choose its identity or account configuration.
 - Ordinary users receive only their own records, and every mutation independently checks ownership.
 - Admins receive platform data and can open any user's full panel. The visible banner retains administrator context; it does not change the signed-in identity.
 - An administrator-added email is linked to its existing invited user record at the first matching verified sign-in.
@@ -172,6 +178,8 @@ Build embeds the UI assets and API modules into `dist/server/index.js`, with a m
 | --- | --- | --- |
 | `AUTH_PROVIDER` | `sites`; deployment must remain behind the trusted Sites dispatcher | No |
 | `ADMIN_EMAIL` | Verified owner email eligible for admin bootstrap | Server-only |
+| `ADMIN_PASSWORD_HASH` | JSON salted hash from `scripts/hash-password.mjs`; never a plaintext password | Yes |
+| `OWNER_WORKSPACE_CONFIG` | Private JSON owner/account goal configuration; provisioned once by stable account key | Yes |
 | `INTEGRATION_SECRET` | At least 32 random characters; AES-GCM key derivation for Cloudflare credentials | Yes |
 | `DB` | Provisioned Cloudflare D1 binding | Binding |
 | `JOURNAL_KV` | Optional native KV binding for an alternate deployment adapter | Binding |
@@ -182,6 +190,8 @@ The hosted runtime settings are configured outside the repository. Preserve `INT
 
 | Route | Authentication | Purpose |
 | --- | --- | --- |
+| `POST /api/auth/login` | Configured owner password + same origin | Start a secure owner session |
+| `POST /api/auth/logout` | Same origin | Revoke the cookie session |
 | `GET /api/session` | Verified user | Current identity/role and admin integration status |
 | `GET /api/workspace` | Verified user | Owned records, or platform records for admin |
 | `POST /api/action` | Verified user + owner/admin checks | Typed profile, review, reflection, account, user, license, undo mutations |
@@ -198,4 +208,22 @@ Automated tests cover authentication, owner/admin checks, forged roles, suspensi
 
 Browser QA covers creating a trader, entering their full panel, confirming a real file upload, cloud save/reload, and integration settings. All test records are synthetic and remain in the separate local preview database.
 
-Email notification delivery is not configured; the UI explicitly states this. Sign-in/password recovery is managed by the identity provider. The bridge is read-only. This is not a broker execution terminal, a multi-currency valuation engine, or a full account-equity feed. Large teams may require server pagination and asynchronous import/replication jobs beyond this initial architecture.
+Email notification delivery is not configured; the UI explicitly states this. Other traders use ChatGPT authentication and its recovery flow. Changing the configured owner password requires updating its salted hash through secure runtime configuration; no public password-reset endpoint is provided. The bridge is read-only. This is not a broker execution terminal, a multi-currency valuation engine, or a full account-equity feed. Large teams may require server pagination and asynchronous import/replication jobs beyond this initial architecture.
+
+
+## Private owner setup and compounding rules
+
+`ADMIN_EMAIL`, `ADMIN_PASSWORD_HASH`, and `OWNER_WORKSPACE_CONFIG` are set through secret runtime settings. Do not commit actual credentials, personal account plans, or trade records. The password helper reads from hidden stdin and emits a salted hash; capture its output directly into the runtime secret, not a public terminal transcript. Existing applied migrations are unchanged; `0001_password_sessions.sql` adds session and login-limit tables.
+
+The owner configuration names the owner, stable `accountKey`, account nickname, initial/target balances, base risk, net-profit step, and timezone. The account is created once with known opening capital, an administrator-owned license, no broker binding, and **zero executions**. Later requests/deployments do not duplicate it, erase history, or reset its balance.
+
+For accounts with a goal:
+
+- Progress uses opening balance plus all actual closed net P&L, including fees.
+- Risk stage is `max(0, floor((closedBalance - initialBalance) / stepProfit))`.
+- Planned risk is `baseRisk × 2^stage`; drawdowns below a milestone reduce the stage. The target ends the next-trade prompt.
+- Weekly counts use Monday-first broker entry dates, scoped to the account.
+- A+ quality is an explicit review annotation, never inferred from profit or fabricated by the journal.
+- The milestone table exposes percentages and labels planned risks that exceed capital. The system tracks the requested rule without placing orders or enforcing it at the broker.
+
+`src/goals.js` renders the account plan on the owner's overview, the admin overview, and Accounts. Execution review permits a setup grade while broker execution values remain immutable.

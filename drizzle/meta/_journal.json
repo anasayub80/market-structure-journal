@@ -1,1 +1,20 @@
-{"version":"7","dialect":"sqlite","entries":[{"idx":0,"version":"6","when":1792570000000,"tag":"0000_journal_backend","breakpoints":true}]}
+{
+  "version": "7",
+  "dialect": "sqlite",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "6",
+      "when": 1792570000000,
+      "tag": "0000_journal_backend",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1792575000000,
+      "tag": "0001_password_sessions",
+      "breakpoints": true
+    }
+  ]
+}

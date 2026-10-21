@@ -1,3 +1,4 @@
+import {authenticateCookie} from './password-auth.js';
 import {id,now,fail} from './security.js';
 export const one=(env,sql,...args)=>env.DB.prepare(sql).bind(...args).first();
 export const rows=async(env,sql,...args)=>(await env.DB.prepare(sql).bind(...args).all()).results;
@@ -6,6 +7,7 @@ export const statement=(env,sql,...args)=>env.DB.prepare(sql).bind(...args);
 export function publicUser(u){return {id:u.id,name:u.name,email:u.email,role:u.role,status:u.status,joined:u.created.slice(0,10),color:u.role==='admin'?'purple':'gold'};}
 export function settings(u){const saved=JSON.parse(u.settings||'{}');return {profile:{timezone:'UTC',currency:'USD',...saved.profile,name:u.name,email:u.email},risk:{perTrade:1,dailyLoss:3,maxTrades:3,...saved.risk},preferences:{email:false,sync:true,weekly:false,...saved.preferences}};}
 export async function auth(request,env){
+ const passwordUser=await authenticateCookie(request,env);if(passwordUser)return {...passwordUser,authMethod:'password'};
  const identity=request.headers.get('oai-authenticated-user-id'),mail=request.headers.get('oai-authenticated-user-email')?.toLowerCase();
  if(!identity||!mail)fail(401,'Sign in to open your journal.');
  let u=await one(env,'SELECT * FROM users WHERE auth_id = ?',identity);
@@ -14,7 +16,7 @@ export async function auth(request,env){
   const name=request.headers.get('oai-authenticated-user-full-name');let display=mail.split('@')[0];try{if(name)display=decodeURIComponent(name).slice(0,70);}catch{}
   await run(env,'INSERT OR IGNORE INTO users(id,auth_id,email,name,role,status,created,settings) VALUES(?,?,?,?,?,?,?,?)',id(),identity,mail,display,role,'Active',now(),'{}');
  }u=await one(env,'SELECT * FROM users WHERE auth_id = ?',identity);}
- if(!u||u.status==='Suspended')fail(403,'Your access is suspended. Contact your administrator.');return u;
+ if(!u||u.status==='Suspended')fail(403,'Your access is suspended. Contact your administrator.');return {...u,authMethod:'chatgpt'};
 }
 export const admin=u=>{if(u.role!=='admin')fail(403,'Administrator access is required.');};
 export function authorize(u,owner){if(u.role!=='admin'&&u.id!==owner)fail(403,'This record belongs to another user.');}

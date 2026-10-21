@@ -1,8 +1,9 @@
 import test from 'node:test';import assert from 'node:assert/strict';import {readFile} from 'node:fs/promises';import {deflateRawSync} from 'node:zlib';
 import {parseMT5File,parseDelimited,parseNumber,parseTimestamp,parseMarkupRows,rowsToReport,planImport,commitReport,undoReport} from '../src/importer.js';
-import {loadState,metrics,filterTrades,groupTrades} from '../src/data.js';
+import {metrics,filterTrades,groupTrades} from '../src/data.js';
+import {loadState} from './fixtures/legacy-data.mjs';
 const fixture=async(name)=>new File([await readFile(new URL('fixtures/'+name,import.meta.url))],name);
-const example=async()=>parseMT5File(new File([await readFile(new URL('../public/assets/mt5-import-example.csv',import.meta.url))],'history.csv'));
+const example=async()=>parseMT5File(new File([await readFile(new URL('../tests/fixtures/mt5-import-example.csv',import.meta.url))],'history.csv'));
 let next=0;const makeId=()=>`import-id-${++next}`;
 const settings={userId:'u1',name:'My MT5',number:'12345678',server:'Broker-Live',currency:'USD',balance:10000};
 test('HTML positions report ignores duplicate deal tables, summary and script markup',async()=>{const r=await parseMT5File(await fixture('mt5-positions.html'));assert.equal(r.trades.length,2);assert.equal(r.net,75);assert.equal(r.metadata.account,'12345678');assert.equal(r.metadata.currency,'USD');assert.equal(r.trades[0].fees,4);assert.equal(r.trades[1].fees,1);assert.equal(r.trades[0].r,null);assert.equal(r.trades[0].magic,null);assert.equal(r.trades[0].session,'Unclassified');});

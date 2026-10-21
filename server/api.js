@@ -1,3 +1,5 @@
+import {login,logout} from './password-auth.js';
+import {provisionOwner} from './provision.js';
 import {HTTPError,fail,json,id,now,text,email,number,date,secret,hash,checkOrigin,readJSON,body} from './security.js';
 import {auth,admin,owner,account,authorize,accountData,publicUser,settings,one,rows,run,statement,auditStatement,hydrate} from './store.js';
 import {commit,undo,parseUpload} from './imports.js';
@@ -5,9 +7,12 @@ import * as cloudflare from './cloudflare.js';
 import {parseMT5File} from '../src/importer.js';
 export async function api(request,env,ctx={waitUntil:()=>{}}){try{
  if(!env.DB)fail(503,'Cloud database is not configured.');const path=new URL(request.url).pathname;
+ if(path==='/api/session'||path==='/api/auth/login')await provisionOwner(env);
+ if(path==='/api/auth/login')return await login(request,env);
+ if(path==='/api/auth/logout')return await logout(request,env);
  if(path==='/api/ea/ingest')return await ingest(request,env,ctx);
  const u=await auth(request,env);if(request.method==='GET'){
-  if(path==='/api/session')return json({user:publicUser(u),provider:'chatgpt',storage:'Cloudflare D1',cloudflare:u.role==='admin'?await cloudflare.status(env):undefined});
+  if(path==='/api/session')return json({user:publicUser(u),provider:u.authMethod||'chatgpt',storage:'Cloudflare D1',cloudflare:u.role==='admin'?await cloudflare.status(env):undefined});
   if(path==='/api/workspace')return json({db:await hydrate(env,u)});
   if(path==='/api/cloudflare'){admin(u);return json(await cloudflare.status(env));}
   fail(404,'Endpoint not found.');
@@ -31,7 +36,7 @@ async function action(env,u,input){const f=input.fields||{},type=input.type;let 
   else if(type==='risk'){current.risk={perTrade:number(f.perTrade,.1,100),dailyLoss:number(f.dailyLoss,.1,100),maxTrades:number(f.maxTrades,1,100)};await run(env,'UPDATE users SET settings=? WHERE id=?',JSON.stringify(current),target.id);}
   else{current.preferences={email:!!f.email,sync:!!f.sync,weekly:!!f.weekly};await run(env,'UPDATE users SET settings=? WHERE id=?',JSON.stringify(current),target.id);}break;
  }
- case'review':{const t=await one(env,"SELECT t.* FROM trades t JOIN batches b ON b.id=t.batch_id WHERE t.id=? AND b.state='committed'",input.id);if(!t)fail(404,'Execution not found.');authorize(u,t.owner_id);ownerId=t.owner_id;await run(env,"UPDATE trades SET data=json_set(data,'$.notes',?,'$.reviewed',json(?)) WHERE id=?",text(f.notes??'',10000,false),JSON.stringify(!!f.reviewed),t.id);break;}
+ case'review':{if(f.grade!==undefined&&!['','A+','A','B','C'].includes(f.grade))fail(400,'Choose a supported setup quality grade.');const t=await one(env,"SELECT t.* FROM trades t JOIN batches b ON b.id=t.batch_id WHERE t.id=? AND b.state='committed'",input.id);if(!t)fail(404,'Execution not found.');authorize(u,t.owner_id);ownerId=t.owner_id;await run(env,"UPDATE trades SET data=json_set(data,'$.notes',?,'$.reviewed',json(?)) WHERE id=?",text(f.notes??'',10000,false),JSON.stringify(!!f.reviewed),t.id);if(f.grade!==undefined){if(!['','A+','A','B','C'].includes(f.grade))fail(400,'Choose a supported setup quality grade.');await run(env,"UPDATE trades SET data=json_set(data,'$.grade',?) WHERE id=?",f.grade,t.id);}break;}
  case'entry.save':{const target=await owner(env,u,input.ownerId);ownerId=target.id;const old=input.id?await one(env,'SELECT * FROM entries WHERE id=?',input.id):null;if(input.id&&!old)fail(404,'Reflection not found.');if(old&&old.owner_id!==target.id)fail(403,'This reflection belongs to another owner.');const entry={id:old?.id||id(),userId:target.id,date:date(f.date),title:text(f.title,120),content:text(f.content,20000),mood:['Focused','Calm','Confident','Impatient','Anxious'].includes(f.mood)?f.mood:'Focused',rating:number(f.rating,1,5)};await run(env,'INSERT INTO entries(id,owner_id,data) VALUES(?,?,?) ON CONFLICT(id) DO UPDATE SET data=excluded.data',entry.id,target.id,JSON.stringify(entry));break;}
  case'entry.delete':{const entry=await one(env,'SELECT * FROM entries WHERE id=?',input.id);if(!entry)fail(404,'Reflection not found.');authorize(u,entry.owner_id);ownerId=entry.owner_id;await run(env,'DELETE FROM entries WHERE id=?',entry.id);break;}
  case'users.create':{admin(u);const mail=email(f.email),name=text(f.name,70),newId=id();if(await one(env,'SELECT id FROM users WHERE email=?',mail))fail(409,'A user with this email already exists.');await run(env,"INSERT INTO users(id,email,name,role,status,created,settings) VALUES(?,?,?,'user','Invited',?,'{}')",newId,mail,name,now());ownerId=newId;if(f.license)await issue(env,u,{userId:newId,name:name.split(' ')[0]+' · Trading account',balance:0,expiry:new Date(Date.now()+365*86400000).toISOString().slice(0,10),type:'Live'});result.message='User added. Ask them to sign in with this exact email; no invitation email is sent.';break;}

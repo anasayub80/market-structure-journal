@@ -1,0 +1,3 @@
+// Read a password from hidden stdin; emit only a salted digest for a server secret.
+import {randomBytes,pbkdf2Sync} from 'node:crypto';
+if(process.stdin.isTTY)process.stdin.setRawMode(true);process.stdout.write('Ready for password on hidden stdin.\n');let input='';process.stdin.setEncoding('utf8');process.stdin.on('data',chunk=>{input+=chunk;if(!input.includes('\n'))return;const password=input.slice(0,input.indexOf('\n')).replace(/\r$/,'');const salt=randomBytes(16).toString('hex');const result={algorithm:'PBKDF2-SHA256',iterations:100000,salt,digest:pbkdf2Sync(password,Buffer.from(salt,'hex'),100000,32,'sha256').toString('hex')};process.stdout.write(JSON.stringify(result)+'\n');input='';if(process.stdin.isTTY)process.stdin.setRawMode(false);process.exit(0);});
