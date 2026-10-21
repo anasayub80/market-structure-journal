@@ -5,3 +5,6 @@ node_modules/
 !.env.example
 *.log
 .openai/*.local.*
+.local/
+server/assets.generated.js
+.wrangler/

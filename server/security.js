@@ -1,0 +1,18 @@
+export class HTTPError extends Error { constructor(status,message){super(message);this.status=status;} }
+export const fail=(status,message)=>{throw new HTTPError(status,message);};
+export const id=()=>crypto.randomUUID();
+export const now=()=>new Date().toISOString();
+export const text=(value,max=200,required=true)=>{if(typeof value!=='string'||value.length>max||(required&&!value.trim()))fail(400,'Check the required fields and their length.');return value.trim();};
+export const email=value=>{const v=text(value,254).toLowerCase();if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v))fail(400,'Enter a valid email address.');return v;};
+export const number=(v,min=0,max=1e12)=>{const n=Number(v);if(!Number.isFinite(n)||n<min||n>max)fail(400,'Enter a number within the allowed range.');return n;};
+export const date=v=>{const s=text(v,10);if(!/^\d{4}-\d{2}-\d{2}$/.test(s)||!Number.isFinite(Date.parse(s+'T00:00:00Z'))||new Date(s+'T00:00:00Z').toISOString().slice(0,10)!==s)fail(400,'Enter a valid date.');return s;};
+export const secret=()=>{const bytes=crypto.getRandomValues(new Uint8Array(32));return Array.from(bytes,b=>b.toString(16).padStart(2,'0')).join('');};
+export const hash=async v=>Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(v))),b=>b.toString(16).padStart(2,'0')).join('');
+export const json=(data,status=200)=>new Response(JSON.stringify(data),{status,headers:{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'}});
+export function checkOrigin(request){const origin=request.headers.get('Origin');if(!origin||origin!==new URL(request.url).origin)fail(403,'Open Structure in its original browser tab to make changes.');if(!request.headers.get('Content-Type')?.startsWith('multipart/form-data')&&!request.headers.get('Content-Type')?.startsWith('application/json'))fail(415,'Use JSON or a report upload.');}
+export async function body(request,max=32000){const length=Number(request.headers.get('Content-Length')||0);if(length>max)fail(413,'This request is too large.');const stream=request.body?.getReader();if(!stream)return new Uint8Array();const parts=[];let size=0;for(;;){const {done,value}=await stream.read();if(done)break;size+=value.byteLength;if(size>max){await stream.cancel();fail(413,'This request is too large.');}parts.push(value);}const data=new Uint8Array(size);let at=0;for(const p of parts){data.set(p,at);at+=p.length;}return data;}
+export async function readJSON(request,max){try{return JSON.parse(new TextDecoder().decode(await body(request,max)));}catch(e){if(e instanceof HTTPError)throw e;fail(400,'The request is not valid JSON.');}}
+const to64=bytes=>btoa(String.fromCharCode(...bytes));const from64=s=>Uint8Array.from(atob(s),c=>c.charCodeAt(0));
+async function encryptionKey(env){if(!env.INTEGRATION_SECRET||env.INTEGRATION_SECRET.length<32)fail(503,'The server integration secret has not been configured.');return crypto.subtle.importKey('raw',await crypto.subtle.digest('SHA-256',new TextEncoder().encode(env.INTEGRATION_SECRET)),{name:'AES-GCM'},false,['encrypt','decrypt']);}
+export async function seal(value,env){const iv=crypto.getRandomValues(new Uint8Array(12));const encrypted=await crypto.subtle.encrypt({name:'AES-GCM',iv},await encryptionKey(env),new TextEncoder().encode(JSON.stringify(value)));return JSON.stringify({iv:to64(iv),value:to64(new Uint8Array(encrypted))});}
+export async function unseal(value,env){const stored=JSON.parse(value);return JSON.parse(new TextDecoder().decode(await crypto.subtle.decrypt({name:'AES-GCM',iv:from64(stored.iv)},await encryptionKey(env),from64(stored.value))));}

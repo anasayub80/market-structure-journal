@@ -1,92 +1,12 @@
-// Headless DOM-contract tests exercise real routing, rendering, and event handlers.
-// They do not substitute for browser layout or accessibility verification.
-import test from 'node:test';import assert from 'node:assert/strict';
+import test from 'node:test';import assert from 'node:assert/strict';import {emptyWorkspace} from '../src/cloud.js';
 const events={},nodes={app:{innerHTML:''},overlay:{innerHTML:'',firstChild:null,querySelector:()=>null},toast:{innerHTML:''}};
-globalThis.document={documentElement:{dataset:{}},body:{classList:{add(){},remove(){}},append(){}},activeElement:null,querySelector:s=>s==='#app'?nodes.app:s==='#overlay-root'?nodes.overlay:s==='#toast-root'?nodes.toast:null,addEventListener:(name,fn)=>events[name]=fn,getElementById:()=>null};
-const windowEvents={};globalThis.window={addEventListener:(n,fn)=>windowEvents[n]=fn,scrollTo(){}};globalThis.location={hash:''};
-const saved=new Map();globalThis.localStorage={getItem:k=>saved.get(k)||null,setItem:(k,v)=>saved.set(k,v),removeItem:k=>saved.delete(k)};
-globalThis.FormData=class{constructor(form){return Object.entries(form.fields)[Symbol.iterator]();}};
+globalThis.document={documentElement:{dataset:{}},body:{classList:{add(){},remove(){}}},activeElement:null,querySelector:s=>s==='#app'?nodes.app:s==='#overlay-root'?nodes.overlay:s==='#toast-root'?nodes.toast:null,addEventListener:(name,fn)=>events[name]=fn,getElementById:()=>null};
+const windowEvents={};globalThis.window={addEventListener:(n,fn)=>windowEvents[n]=fn,scrollTo(){}};globalThis.location={hash:'',origin:'https://journal.example'};globalThis.localStorage={getItem:()=>null,setItem(){}};
+const db=emptyWorkspace();db.users=[{id:'owner',name:'Platform Owner',email:'owner@example.test',role:'admin',status:'Active'},{id:'alice',name:'Alice Trader',email:'alice@example.test',role:'user',status:'Active'}];db.profile={...db.profile,name:'Platform Owner',email:'owner@example.test'};db.userSettings={owner:{profile:db.profile,risk:db.risk,preferences:db.preferences},alice:{profile:{...db.profile,name:'Alice Trader',email:'alice@example.test'},risk:db.risk,preferences:db.preferences}};
+globalThis.fetch=async path=>new Response(JSON.stringify(path==='/api/session'?{user:db.users[0]}:path==='/api/cloudflare'?{connected:false,pending:0}:{db}),{status:200,headers:{'Content-Type':'application/json'}});
 await import('../src/app.js');
 function route(hash){location.hash=hash;windowEvents.hashchange();}
 async function click(action){await events.click({target:{closest:()=>({dataset:{action},disabled:false}),classList:{contains:()=>false}}});}
-function submit(id,fields,dataset={}){events.submit({preventDefault(){},target:{id,dataset,fields,checkValidity:()=>true}});}
-const db=()=>JSON.parse(saved.get('structure-v1'));
-test('all user and admin pages render without runtime errors',()=>{for(const role of ['user','admin'])for(const page of role==='user'?['overview','trades','calendar','analytics','journal','accounts','imports','reports','settings','help']:['overview','users','licenses','accounts','analytics','calendar','connections','activity','settings','help']){route(`#/${role}/${page}`);assert.match(nodes.app.innerHTML,/<main/);assert.ok(!nodes.app.innerHTML.includes('NaN'));assert.ok(nodes.app.innerHTML.includes('page-heading'));}for(const page of ['login','register','forgot','onboarding']){route('#/'+page);assert.ok(nodes.app.innerHTML.includes('auth-layout'));}});
-test('role routes keep administrator pages out of the user workspace',()=>{route('#/user/users');assert.ok(nodes.app.innerHTML.includes('Every trade tells a story'));assert.ok(!nodes.app.innerHTML.includes('User management'));});
-test('trade detail opens a review form and persists edits',async()=>{route('#/user/trades');await click('trade:t1');assert.ok(nodes.overlay.innerHTML.includes('trade-review-form'));submit('trade-review-form',{setup:'Liquidity sweep',emotion:'Calm',notes:'Reviewed in flow test',reviewed:'on'},{id:'t1'});assert.equal(db().trades.find(t=>t.id==='t1').notes,'Reviewed in flow test');});
-test('user route cannot mutate another user trade',()=>{route('#/user/trades');const t=db().trades.find(t=>t.accountId==='a4');submit('trade-review-form',{setup:'Liquidity sweep',emotion:'Calm',notes:'Forbidden edit'},{id:t.id});assert.notEqual(db().trades.find(x=>x.id===t.id).notes,'Forbidden edit');});
-test('calendar day opens its actual trades and reflection action',async()=>{route('#/user/calendar');await click('day:2026-10-16');assert.ok(nodes.overlay.innerHTML.includes('Net result'));assert.ok(nodes.overlay.innerHTML.includes('Daily reflection'));await click('entry-date:2026-10-16');assert.ok(nodes.overlay.innerHTML.includes('entry-form'));});
-test('daily reflection create and delete persists',async()=>{route('#/user/journal');submit('entry-form',{date:'2026-10-17',title:'Flow test reflection',mood:'Focused',rating:'4',content:'Waited for my setup.'},{id:''});const entry=db().entries.find(x=>x.title==='Flow test reflection');assert.ok(entry);await click('confirm-delete-entry:'+entry.id);assert.ok(!db().entries.some(x=>x.id===entry.id));});
-test('admin can create a user and their first single-account license',()=>{route('#/admin/users');submit('user-form',{name:'Test Trader',email:'test@example.com',status:'Active',license:'on'});const u=db().users.find(u=>u.email==='test@example.com');assert.ok(u);assert.equal(db().accounts.filter(a=>a.userId===u.id).length,1);const before=db().users.length;submit('user-form',{name:'Duplicate',email:'test@example.com',status:'Active'});assert.equal(db().users.length,before);});
-test('admin-issued licenses belong to their selected owner',()=>{route('#/admin/licenses');submit('license-form',{userId:'u2',name:'Test license',type:'Demo',balance:'5000',expiry:'2027-10-18'});assert.equal(db().accounts.find(a=>a.name==='Test license').userId,'u2');});
-test('non-admin cannot issue licenses or add users through handlers',()=>{route('#/user/accounts');const before=db();submit('license-form',{userId:'u1',name:'Unauthorized',balance:'1'});submit('user-form',{name:'Unauthorized',email:'forbidden@example.com'});assert.equal(db().accounts.length,before.accounts.length);assert.equal(db().users.length,before.users.length);});
-test('sample license activation and full connection wizard complete',async()=>{route('#/user/accounts');submit('activate-form',{license:'STRC-DEMO-2026',name:'Connected test',type:'Demo'});const a=db().accounts.find(a=>a.license==='STRC-DEMO-2026');assert.ok(a);submit('connect-form',{number:'12345678',broker:'Test broker',server:'Test-MT5'},{id:a.id});assert.ok(nodes.overlay.innerHTML.includes('Set up your terminal connector'));await click('connect-verify:'+a.id);assert.ok(nodes.overlay.innerHTML.includes('Simulate successful connection'));await click('connect-finish:'+a.id);const current=db().accounts.find(x=>x.id===a.id);assert.equal(current.connection,'Connected');assert.equal(current.number,'12345678');assert.equal(current.server,'Test-MT5');});
-test('suspending a user suspends active licenses and disconnects them',async()=>{route('#/admin/users');await click('confirm-toggle-user:u2');assert.equal(db().users.find(u=>u.id==='u2').status,'Suspended');assert.ok(db().accounts.filter(a=>a.userId==='u2').every(a=>a.status!=='Active'&&a.connection==='Disconnected'));});
-test('settings save local risk preferences',()=>{route('#/user/settings');submit('risk-form',{perTrade:'0.5',dailyLoss:'2',maxTrades:'2'});assert.deepEqual(db().risk,{perTrade:.5,dailyLoss:2,maxTrades:2});});
-
-test('clicking a user opens a complete scoped workspace and preserves admin access',async()=>{
- route('#/admin/users');await click('user:u2');assert.equal(location.hash,'/admin/users/u2/overview');windowEvents.hashchange();
- assert.ok(nodes.app.innerHTML.includes('Viewing Sarah Chen’s panel'));
- assert.ok(nodes.app.innerHTML.includes('Back to admin'));
- assert.ok(nodes.app.innerHTML.includes('#/admin/users/u2/trades'));
- assert.ok(nodes.app.innerHTML.includes('Sarah · Funded'));
- assert.ok(!nodes.app.innerHTML.includes('Main trading account'));
- assert.ok(!nodes.app.innerHTML.includes('Swing portfolio'));
-});
-test('all user pages work inside an admin-selected user panel',()=>{
- for(const page of ['overview','trades','calendar','analytics','journal','accounts','imports','reports','settings','help']){
-  route('#/admin/users/u2/'+page);assert.ok(nodes.app.innerHTML.includes('Viewing Sarah Chen’s panel'));assert.ok(nodes.app.innerHTML.includes('page-heading'));assert.ok(!nodes.app.innerHTML.includes('NaN'));
- }
-});
-test('selected-user trades, calendar totals and analytics reconcile to that owner only',async()=>{
- route('#/admin/users/u2/trades');const {metrics,filterTrades,money}=await import('../src/data.js');
- const rows=filterTrades(db().trades,{accountIds:['a4'],range:'month'}),m=metrics(rows);
- assert.ok(nodes.app.innerHTML.includes(money(m.pnl,true)));assert.ok(!nodes.app.innerHTML.includes('Main trading account'));
- route('#/admin/users/u2/calendar');await click('day:2026-10-16');
- const day=metrics(rows.filter(t=>t.date==='2026-10-16'));assert.ok(nodes.overlay.innerHTML.includes(money(day.pnl,true)));
- route('#/admin/users/u2/analytics');assert.ok(nodes.app.innerHTML.includes('Beyond the P&L'));
-});
-test('journals are scoped by user and selected-user edits retain the owner',()=>{
- route('#/admin/users/u2/journal');assert.ok(nodes.app.innerHTML.includes('Protecting the funded account.'));assert.ok(!nodes.app.innerHTML.includes('Patience is the edge.'));
- submit('entry-form',{date:'2026-10-16',title:'Sarah private review',content:'Sarah only',mood:'Calm',rating:'5'},{id:''});
- assert.equal(db().entries.find(e=>e.title==='Sarah private review').userId,'u2');
- route('#/user/journal');assert.ok(!nodes.app.innerHTML.includes('Sarah private review'));
- const foreign=db().entries.find(e=>e.title==='Sarah private review');submit('entry-form',{date:'2026-10-16',title:'Wrong owner',content:'Forbidden',mood:'Calm',rating:'5'},{id:foreign.id});assert.equal(db().entries.find(e=>e.id===foreign.id).title,'Sarah private review');
-});
-test('selected user settings do not overwrite the primary user profile or risk',()=>{
- route('#/admin/users/u3/settings');submit('risk-form',{perTrade:'0.25',dailyLoss:'1',maxTrades:'1'});
- assert.equal(db().userSettings.u3.risk.perTrade,.25);assert.equal(db().risk.perTrade,.5);
- submit('profile-form',{name:'James Updated',email:'james-new@example.com',timezone:'UTC',currency:'USD'});
- assert.equal(db().users.find(u=>u.id==='u3').name,'James Updated');assert.equal(db().profile.name,'Anas Ayub');
-});
-test('empty and unknown users do not fall back to another user’s statistics',()=>{
- route('#/admin/users/u4/overview');assert.ok(nodes.app.innerHTML.includes('Viewing Omar Khalid’s panel'));assert.ok(!nodes.app.innerHTML.includes('Main trading account'));assert.ok(nodes.app.innerHTML.includes('$0.00'));
- route('#/admin/users/no-such-user/overview');assert.ok(nodes.app.innerHTML.includes('User management'));assert.ok(!nodes.app.innerHTML.includes('admin-view-banner'));
- route('#/user/users/u2/overview');assert.ok(!nodes.app.innerHTML.includes('Viewing Sarah Chen’s panel'));
-});
-test('return control exits the selected panel and restores full admin navigation',async()=>{
- route('#/admin/users/u2/trades');await click('back-to-admin');assert.equal(location.hash,'/admin/users');windowEvents.hashchange();assert.ok(nodes.app.innerHTML.includes('User management'));assert.ok(!nodes.app.innerHTML.includes('admin-view-banner'));assert.ok(nodes.app.innerHTML.includes('#/admin/licenses'));
-});
-
-test('EA-only workspace removes trade creation and playbook from both role contexts',async()=>{
- for(const base of ['#/user/','#/admin/users/u2/']){
-  for(const page of ['overview','trades','analytics']){
-   route(base+page);assert.ok(!nodes.app.innerHTML.includes('data-action="add-trade"'));assert.ok(!nodes.app.innerHTML.includes('>Playbook<'));assert.ok(!nodes.app.innerHTML.includes('/playbook'));
-  }
-  route(base+'playbook');assert.ok(nodes.app.innerHTML.includes('Every trade tells a story'));
- }
- route('#/user/trades');const before=db().trades.length;
- await click('add-trade');submit('add-trade-form',{accountId:'a1',pnl:'999999',notes:'Not allowed'});submit('playbook-form',{name:'Removed action'});
- assert.equal(db().trades.length,before);assert.ok(!db().trades.some(t=>t.notes==='Not allowed'));
-});
-test('execution review cannot overwrite broker data or EA metadata',async()=>{
- route('#/user/trades');const original=db().trades.find(t=>t.id==='t1');await click('trade:t1');
- assert.ok(nodes.overlay.innerHTML.includes('Magic number'));assert.ok(nodes.overlay.innerHTML.includes('Synced execution data is read-only'));
- assert.ok(!nodes.overlay.innerHTML.includes('name="setup"'));
- submit('trade-review-form',{notes:'EA observation',reviewed:'on',pnl:'999999',entry:'1',fees:'0',eaName:'Injected EA',magic:'0'},{id:'t1'});
- const updated=db().trades.find(t=>t.id==='t1');for(const key of ['pnl','entry','exit','fees','lots','eaName','magic','source'])assert.equal(updated[key],original[key]);assert.equal(updated.notes,'EA observation');
-});
-test('EA analytics and history use imported advisor identity',async()=>{
- route('#/user/analytics');await click('analytics:Expert Advisors');assert.ok(nodes.app.innerHTML.includes('NOVA Retracement EA'));assert.ok(nodes.app.innerHTML.includes('Structure Continuation EA'));
- route('#/user/trades');assert.ok(nodes.app.innerHTML.includes('EA sync only'));assert.ok(nodes.app.innerHTML.includes('EA / source'));assert.ok(!nodes.app.innerHTML.includes('· Manual'));
-});
+test('all authenticated user and admin pages render with empty cloud data',()=>{for(const role of ['user','admin'])for(const page of role==='user'?['overview','trades','calendar','analytics','journal','accounts','imports','reports','settings','help']:['overview','users','licenses','accounts','analytics','calendar','imports','connections','activity','settings','help']){route(`#/${role}/${page}`);assert.match(nodes.app.innerHTML,/<main/);assert.ok(!nodes.app.innerHTML.includes('NaN'),page);assert.ok(nodes.app.innerHTML.includes('page-heading'));}});
+test('admin opens every section of a selected user panel and keeps owner scope',async()=>{route('#/admin/users');await click('user:alice');assert.equal(location.hash,'/admin/users/alice/overview');for(const page of ['overview','trades','calendar','analytics','journal','accounts','imports','reports','settings','help']){route('#/admin/users/alice/'+page);assert.match(nodes.app.innerHTML,/Viewing Alice Trader’s panel/);assert.match(nodes.app.innerHTML,/#\/admin\/users\/alice\/trades/);}});
+test('cloud settings provides a secure token field; no demo role switch appears',async()=>{route('#/admin/settings');await click('settings:Cloudflare');assert.match(nodes.app.innerHTML,/name="token" type="password"/);assert.match(nodes.app.innerHTML,/KV namespace ID/);await click('profile-menu');assert.ok(!nodes.overlay.innerHTML.includes('prototype'));assert.ok(!nodes.overlay.innerHTML.includes('View sample'));assert.match(nodes.overlay.innerHTML,/verified on the server/);});

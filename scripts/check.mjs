@@ -1,0 +1,1 @@
+import {readdirSync} from 'node:fs';import {execFileSync} from 'node:child_process';for(const folder of ['src','server'])for(const name of readdirSync(folder))if(name.endsWith('.js')&&!name.endsWith('.generated.js'))execFileSync(process.execPath,['--check',`${folder}/${name}`],{stdio:'inherit'});console.log('All application and backend modules pass syntax checks.');

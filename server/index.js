@@ -1,0 +1,6 @@
+import {api} from './api.js';
+import {assets} from './assets.generated.js';
+const headers={'X-Content-Type-Options':'nosniff','Referrer-Policy':'no-referrer','Permissions-Policy':'camera=(), microphone=(), geolocation=()','Content-Security-Policy':"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self' https://chatgpt.com",'Strict-Transport-Security':'max-age=31536000; includeSubDomains'};
+export default {async fetch(request,env,ctx){let response;const path=new URL(request.url).pathname;if(path.startsWith('/api/')){
+ if(env.AUTH_PROVIDER!=='sites')response=new Response(JSON.stringify({error:'Configure the trusted authentication provider before serving this backend.'}),{status:503,headers:{'Content-Type':'application/json'}});else response=await api(request,env,ctx);
+ }else{const asset=assets[path==='/'?'/index.html':path];response=asset?new Response(asset.body,{status:200,headers:{'Content-Type':asset.type,'Cache-Control':'no-cache'}}):new Response('Not found',{status:404});}const secured=new Response(response.body,response);for(const [key,value] of Object.entries(headers))secured.headers.set(key,value);return secured;}};

@@ -3,7 +3,17 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "Complete trading journal and administrator UI prototype",
-  "scripts": {"dev": "node scripts/serve.mjs", "build": "node scripts/build.mjs", "test": "node --test tests/*.test.mjs", "check": "node --check src/app.js && node --check src/data.js && node --check src/ui.js && node --check src/importer.js && node --check src/imports-ui.js"},
-  "engines": {"node": ">=20"}
+  "description": "Cloud trading journal with verified user/admin authentication and Cloudflare D1/KV persistence",
+  "scripts": {
+    "dev": "node scripts/serve.mjs",
+    "build": "node scripts/build.mjs",
+    "test": "node --test tests/*.test.mjs",
+    "check": "node scripts/check.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "esbuild": "0.25.12"
+  }
 }
